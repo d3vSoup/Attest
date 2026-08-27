@@ -1,34 +1,13 @@
 {
   "total_records": 10000,
-  "generation_timestamp": "2026-08-26T07:15:30.130898+00:00",
-  "statistical_basis": [
-    "NPCI Annual Report 2023-24 (failure category breakdown)",
-    "Razorpay PSR Blog (3DS dropout rate, gateway timeout %)",
-    "RBI Payment System Indicators Q4 FY24 (INR amount ranges by channel)"
-  ],
+  "generation_timestamp": "2026-08-27T08:02:46.293396+00:00",
+  "data_source": "kaggle:mlg-ulb/creditcardfraud",
   "class_distribution": {
-    "gateway_timeout": 3800,
-    "insufficient_funds": 2800,
-    "auth_3ds_failure": 2200,
-    "fraud_flag": 1200
+    "insufficient_funds": 5919,
+    "gateway_timeout": 2850,
+    "auth_3ds_failure": 1201,
+    "fraud_flag": 30
   },
-  "anomaly_count": 250,
-  "anomaly_rate_pct": 2.5,
-  "customers": 500,
-  "channels": [
-    "upi",
-    "card",
-    "netbanking",
-    "wallet"
-  ],
-  "merchant_categories": [
-    "ecommerce",
-    "travel",
-    "food",
-    "utilities",
-    "gaming",
-    "retail",
-    "insurance"
-  ],
-  "date_range_days": 180
+  "anomaly_count": 30,
+  "anomaly_rate_pct": 0.3
 }

@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 *.pkl
 *.db
+PROJECT_SUMMARY.md
+HOW_TO_RUN.md

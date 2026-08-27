@@ -112,7 +112,45 @@ def main():
         "--limit", type=int, default=None,
         help="Process only the first N transactions (default: all)"
     )
+    parser.add_argument(
+        "--real", action="store_true",
+        help="Load real Kaggle data (mlg-ulb/creditcardfraud) before running pipeline"
+    )
+    parser.add_argument(
+        "--csv", default=None,
+        help="Path to a user-provided CSV to use as input data"
+    )
+    parser.add_argument(
+        "--synthetic", action="store_true",
+        help="Regenerate synthetic data before running pipeline"
+    )
     args = parser.parse_args()
+
+    # ── Optionally (re)load data before running ────────────────────────────────
+    loader = Path(__file__).parent.parent / "data" / "load_real_data.py"
+    if args.csv:
+        print("[Data] Loading user-provided CSV...")
+        import subprocess
+        subprocess.run(
+            [sys.executable, str(loader), "--csv", args.csv]
+            + (["--limit", str(args.limit)] if args.limit else []),
+            cwd=Path(__file__).parent.parent, check=True
+        )
+    elif args.real:
+        print("[Data] Downloading real Kaggle dataset...")
+        import subprocess
+        subprocess.run(
+            [sys.executable, str(loader)]
+            + (["--limit", str(args.limit)] if args.limit else []),
+            cwd=Path(__file__).parent.parent, check=True
+        )
+    elif args.synthetic:
+        print("[Data] Regenerating synthetic data...")
+        import subprocess
+        subprocess.run(
+            [sys.executable, str(loader), "--synthetic"],
+            cwd=Path(__file__).parent.parent, check=True
+        )
 
     print("=" * 60)
     print("ATTEST — End-to-End Pipeline")
@@ -122,7 +160,7 @@ def main():
 
     print(f"\n[Step 1] Loading transactions from {DATA_PATH}...")
     if not DATA_PATH.exists():
-        print("ERROR: Run 'python data/generate_synthetic.py' first.")
+        print("ERROR: No data found. Run with --real, --csv, or --synthetic.")
         sys.exit(1)
 
     with open(DATA_PATH) as f:
