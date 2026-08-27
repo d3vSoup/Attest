@@ -382,12 +382,23 @@ with h_right:
     if META_PATH.exists():
         with open(META_PATH) as f:
             meta = json.load(f)
+        data_source = meta.get("data_source", "kaggle:mlg-ulb/creditcardfraud")
+        day_window  = meta.get("date_range_days", "90")
+        # Build a friendly subtitle from data_source if date_range_days is missing
+        if "date_range_days" in meta:
+            subtitle = f'{day_window}-day window'
+        elif "kaggle" in str(data_source):
+            subtitle = 'ULB Credit Card Fraud dataset · real transactions'
+        elif "user-csv" in str(data_source):
+            subtitle = f'user dataset · {data_source}'
+        else:
+            subtitle = 'synthetic · NPCI FY24 distribution'
         st.markdown(
             f'<div style="text-align:right; padding-top:0.6rem;">'
             f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:1.1rem;font-weight:500;color:#111110;">'
             f'{meta["total_records"]:,}</span>'
             f'<span style="font-family:\'Inter\',sans-serif;font-size:0.7rem;color:#6E6E6A;display:block;">'
-            f'transactions · NPCI FY24 distribution · {meta["date_range_days"]}-day window</span>'
+            f'transactions · {subtitle}</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -482,47 +493,89 @@ st.markdown('<hr class="ruled">', unsafe_allow_html=True)
 
 
 # ── Transaction analytics ──────────────────────────────────────────────────────
+# Charts read from the decisions DB (pipeline records) so charts always reflect
+# what the AI agent actually did, not the raw source CSV.
 st.markdown('<span class="section-label">Transaction Analytics</span>', unsafe_allow_html=True)
 
-if DATA_PATH.exists():
-    df_txn = pd.read_csv(DATA_PATH)
+# Build a mini-dataframe from decisions_raw for the charts
+_chart_rows = []
+for _d in decisions_raw:
+    if _d["record_type"] == "policy_anchor":
+        continue
+    _chart_rows.append({
+        "timestamp":    _d.get("timestamp") or "",
+        "label":        _d.get("root_cause") or _d.get("decision") or "unknown",
+        "channel":      _d.get("channel") or "unknown",
+        "amount":       float(_d.get("amount") or 0),
+        "hour_of_day":  int(_d.get("hour_of_day") or 0),
+        "day_of_week":  int(_d.get("day_of_week") or 0),
+        "is_anomaly":   bool(_d.get("is_anomaly")),
+    })
+
+
+if _chart_rows:
+    df_txn = pd.DataFrame(_chart_rows)
     df_txn["timestamp"] = pd.to_datetime(df_txn["timestamp"], utc=True, errors="coerce")
     df_txn["date"] = df_txn["timestamp"].dt.date
+
+    # Normalise label to the 4 known classes so CHART_COLORS applies cleanly
+    _label_map = {
+        "retry":             "insufficient_funds",
+        "alt_payment_nudge": "gateway_timeout",
+        "discount":          "auth_3ds_failure",
+        "escalate":          "insufficient_funds",
+    }
+    df_txn["label"] = df_txn["label"].apply(
+        lambda v: v if v in CHART_COLORS else _label_map.get(v, "insufficient_funds")
+    )
+
+    # Also try reading from the raw CSV for richer time-series if available
+    if DATA_PATH.exists():
+        try:
+            _df_raw = pd.read_csv(DATA_PATH, usecols=["timestamp", "label", "channel", "amount",
+                                                       "hour_of_day", "day_of_week"])
+            _df_raw["timestamp"] = pd.to_datetime(_df_raw["timestamp"], utc=True, errors="coerce")
+            _df_raw["date"] = _df_raw["timestamp"].dt.date
+            df_txn_full = _df_raw
+        except Exception:
+            df_txn_full = df_txn
+    else:
+        df_txn_full = df_txn
 
     ta1, ta2 = st.columns(2)
 
     with ta1:
-        st.markdown('<span class="subsection-label">Daily failure volume by category</span>',
+        st.markdown('<span class="subsection-label">Decision distribution by category</span>',
                     unsafe_allow_html=True)
-        daily = (
-            df_txn.groupby(["date", "label"])
-            .size().reset_index(name="count")
-        )
-        daily["date"] = pd.to_datetime(daily["date"])
-        daily = daily.sort_values("date")
-
-        fig_tl = px.area(
-            daily, x="date", y="count", color="label",
+        # Use DB decisions for the donut/bar — always populated
+        decision_counts = df_txn["label"].value_counts().reset_index()
+        decision_counts.columns = ["label", "count"]
+        fig_tl = px.bar(
+            decision_counts, x="label", y="count", color="label",
             color_discrete_map=CHART_COLORS,
-            labels={"count": "Failures", "date": "", "label": ""},
+            labels={"count": "Decisions", "label": ""},
             template="simple_white",
         )
         fig_tl.update_layout(**CHART_LAYOUT)
-        fig_tl.update_traces(line_width=1.2)
+        fig_tl.update_traces(marker_line_width=0, showlegend=False)
         st.plotly_chart(fig_tl, use_container_width=True)
 
     with ta2:
         st.markdown('<span class="subsection-label">Failures by channel and category</span>',
                     unsafe_allow_html=True)
         ch_label = (
-            df_txn.groupby(["channel", "label"])
+            df_txn_full.groupby(["channel", "label"])
             .size().reset_index(name="count")
+        )
+        # Ensure all labels in ch_label are mapped to known classes
+        ch_label["label"] = ch_label["label"].apply(
+            lambda v: v if v in CHART_COLORS else _label_map.get(v, "insufficient_funds")
         )
         fig_bar = px.bar(
             ch_label, x="channel", y="count", color="label",
             barmode="stack",
             color_discrete_map=CHART_COLORS,
-            labels={"count": "Failures", "channel": "", "label": ""},
+            labels={"count": "Records", "channel": "", "label": ""},
             template="simple_white",
         )
         fig_bar.update_layout(**CHART_LAYOUT)
@@ -534,10 +587,11 @@ if DATA_PATH.exists():
     with ta3:
         st.markdown('<span class="subsection-label">Amount distribution — log scale, by channel</span>',
                     unsafe_allow_html=True)
+        _plot_df = df_txn_full[df_txn_full["amount"] > 0].copy()
         fig_hist = px.histogram(
-            df_txn, x="amount", color="channel",
-            log_x=True, nbins=80, barmode="overlay", opacity=0.7,
-            labels={"amount": "Amount (INR)", "channel": ""},
+            _plot_df, x="amount", color="channel",
+            log_x=True, nbins=60, barmode="overlay", opacity=0.75,
+            labels={"amount": "Amount", "channel": ""},
             template="simple_white",
             color_discrete_sequence=["#3730A3", "#64748B", "#94A3B8", "#CBD5E1"],
         )
@@ -548,39 +602,40 @@ if DATA_PATH.exists():
     with ta4:
         st.markdown('<span class="subsection-label">Fraud flag density — hour of day × day of week</span>',
                     unsafe_allow_html=True)
-        fraud_df = df_txn[df_txn["label"] == "fraud_flag"].copy()
-        hm_data  = (
-            fraud_df.groupby(["day_of_week", "hour_of_day"])
-            .size().reset_index(name="count")
-        )
-        pivot = hm_data.pivot_table(
-            index="day_of_week", columns="hour_of_day",
-            values="count", fill_value=0,
-        )
-        day_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
-        fig_hm = go.Figure(data=go.Heatmap(
-            z=pivot.values,
-            x=[f"{h:02d}h" for h in pivot.columns],
-            y=[day_labels[d] for d in pivot.index],
-            colorscale=[[0, "#F9F9F8"], [0.4, "#C7D2FE"], [1, "#3730A3"]],
-            showscale=True,
-            colorbar=dict(thickness=8, outlinewidth=0,
-                          tickfont=dict(family="IBM Plex Mono", size=9, color="#6E6E6A")),
-        ))
-        hm_layout = {**CHART_LAYOUT}
-        hm_layout["xaxis"] = dict(
-            tickfont=dict(family="IBM Plex Mono", size=8, color="#6E6E6A"),
-            tickangle=-45,
-        )
-        hm_layout["yaxis"] = dict(
-            tickfont=dict(family="Inter", size=9, color="#6E6E6A"),
-        )
-        fig_hm.update_layout(**hm_layout)
-        st.plotly_chart(fig_hm, use_container_width=True)
-
+        fraud_df = df_txn_full[df_txn_full["label"] == "fraud_flag"].copy()
+        if len(fraud_df) > 0:
+            hm_data  = (
+                fraud_df.groupby(["day_of_week", "hour_of_day"])
+                .size().reset_index(name="count")
+            )
+            pivot = hm_data.pivot_table(
+                index="day_of_week", columns="hour_of_day",
+                values="count", fill_value=0,
+            )
+            day_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            fig_hm = go.Figure(data=go.Heatmap(
+                z=pivot.values,
+                x=[f"{h:02d}h" for h in pivot.columns],
+                y=[day_labels[d % 7] for d in pivot.index],
+                colorscale=[[0, "#F9F9F8"], [0.4, "#C7D2FE"], [1, "#3730A3"]],
+                showscale=True,
+                colorbar=dict(thickness=8, outlinewidth=0,
+                              tickfont=dict(family="IBM Plex Mono", size=9, color="#6E6E6A")),
+            ))
+            hm_layout = {**CHART_LAYOUT}
+            hm_layout["xaxis"] = dict(
+                tickfont=dict(family="IBM Plex Mono", size=8, color="#6E6E6A"),
+                tickangle=-45,
+            )
+            hm_layout["yaxis"] = dict(
+                tickfont=dict(family="Inter", size=9, color="#6E6E6A"),
+            )
+            fig_hm.update_layout(**hm_layout)
+            st.plotly_chart(fig_hm, use_container_width=True)
+        else:
+            st.caption("No fraud_flag records in current pipeline run.")
 else:
-    st.caption("Run python data/generate_synthetic.py to populate transaction analytics.")
+    st.caption("No decisions found in database.")
 
 st.markdown('<hr class="ruled">', unsafe_allow_html=True)
 
@@ -843,14 +898,43 @@ if META_PATH.exists():
     with st.expander("Dataset provenance and statistical basis"):
         dp1, dp2 = st.columns(2)
         with dp1:
-            st.markdown('<span class="subsection-label">Statistical sources</span>',
+            st.markdown('<span class="subsection-label">Data source</span>',
                         unsafe_allow_html=True)
-            for src in meta.get("statistical_basis", []):
-                st.markdown(
-                    f'<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;'
-                    f'color:#6E6E6A;padding:0.15rem 0;">— {src}</div>',
-                    unsafe_allow_html=True,
-                )
+            _src = meta.get("data_source", "unknown")
+            _stat_basis = meta.get("statistical_basis", [])
+            if _stat_basis:
+                for src in _stat_basis:
+                    st.markdown(
+                        f'<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;'
+                        f'color:#6E6E6A;padding:0.15rem 0;">— {src}</div>',
+                        unsafe_allow_html=True,
+                    )
+            else:
+                # Kaggle / user CSV data — show source info
+                if "kaggle" in str(_src):
+                    st.markdown(
+                        '<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;color:#6E6E6A;line-height:1.6;">'
+                        'ULB Credit Card Fraud Detection dataset<br>'
+                        '284,807 real European credit card transactions (Sep 2013)<br>'
+                        '492 genuine fraud cases (0.172% prevalence)<br>'
+                        'PCA-anonymised features (V1–V28) for cardholder privacy<br>'
+                        '<a href="https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud" '
+                        'target="_blank" style="color:#3730A3;">kaggle.com/datasets/mlg-ulb/creditcardfraud</a>'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
+                elif "user-csv" in str(_src):
+                    st.markdown(
+                        f'<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;color:#6E6E6A;">'
+                        f'User-provided dataset: {_src}</div>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        '<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;color:#6E6E6A;">'
+                        'Synthetic dataset — NPCI FY24 statistical distributions</div>',
+                        unsafe_allow_html=True,
+                    )
             st.markdown(
                 f'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.72rem;'
                 f'color:#9E9E9A;margin-top:0.5rem;">Generated: {meta.get("generation_timestamp","")[:10]}</div>',
@@ -867,8 +951,8 @@ if META_PATH.exists():
             ]
             st.dataframe(pd.DataFrame(dist_rows), hide_index=True, use_container_width=True)
             st.caption(
-                f"Anomaly rate: {meta.get('anomaly_rate_pct',0):.1f}% "
-                f"({meta.get('anomaly_count',0)} records) — matched to real-world outlier rates."
+                f"Anomaly rate: {meta.get('anomaly_rate_pct', meta.get('anomaly_rate', 0)):.3f}% "
+                f"({meta.get('anomaly_count', 0)} records) — matched to real-world outlier rates."
             )
 
 
