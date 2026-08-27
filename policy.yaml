@@ -1,0 +1,26 @@
+# Attest Policy v1.0
+# This file is hashed and anchored on-chain before any decisions run.
+# Altering this file post-anchor will cause policy_anchor verification to fail.
+
+version: "1.0"
+created_at: "2026-08-01T00:00:00Z"
+
+bounds:
+  max_discount_pct: 10
+  max_retries: 3
+  escalation_confidence_threshold: 0.60
+  allowed_actions:
+    - retry
+    - discount
+    - alt_payment_nudge
+    - escalate
+
+classes:
+  - insufficient_funds
+  - auth_3ds_failure
+  - gateway_timeout
+  - fraud_flag
+
+anomaly_detection:
+  contamination: 0.10
+  random_state: 42

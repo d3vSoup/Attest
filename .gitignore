@@ -1,0 +1,8 @@
+db/
+models/
+.env
+venv/
+__pycache__/
+*.pyc
+*.pkl
+*.db

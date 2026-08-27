@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Attest — AI Payment Intelligence</title>
+  <meta name="description" content="Every payment recovered. Every risk stopped. Every question answered. AI-powered merchant intelligence for Razorpay."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #F9F9F8; --paper: #FFFFFF; --border: #E4E4E2; --border2: #D4D4CF;
+      --ink: #111110; --muted: #6E6E6A; --subtle: #9E9E9A;
+      --accent: #3730A3; --accent2: #4F46E5; --accent-bg: #EEF2FF; --accent-bd: #C7D2FE;
+      --green: #14532D; --green-bg: #DCFCE7; --green-bd: #86EFAC;
+      --red: #7F1D1D; --red-bg: #FEF2F2; --red-bd: #FCA5A5;
+      --amber: #78350F; --amber-bg: #FFFBEB; --amber-bd: #FCD34D;
+      --orange: #7C2D12; --orange-bg: #FFF7ED; --orange-bd: #FDBA74;
+    }
+    html { font-size: 14px; -webkit-font-smoothing: antialiased; }
+    body { background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
+    .serif { font-family: 'Instrument Serif', serif; }
+    .mono  { font-family: 'IBM Plex Mono', monospace; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ─── Shell ─────────────────────────────────────────────────────────── */
+    .shell { display: flex; flex-direction: column; height: 100vh; }
+    .header {
+      height: 52px; padding: 0 1.5rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--paper); flex-shrink: 0; z-index: 10;
+    }
+    .workspace { display: flex; flex: 1; min-height: 0; }
+    .footer {
+      height: 26px; padding: 0 1.5rem; border-top: 1px solid var(--border);
+      background: var(--paper); display: flex; align-items: center;
+      justify-content: space-between; flex-shrink: 0;
+      font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--subtle);
+    }
+
+    /* ─── Events panel ──────────────────────────────────────────────────── */
+    .events-panel {
+      width: 268px; border-right: 1px solid var(--border);
+      background: var(--paper); display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .events-header {
+      padding: 0.75rem 1rem 0.5rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .events-title { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .events-list { flex: 1; overflow-y: auto; padding: 0.35rem 0; }
+    .event-item {
+      padding: 0.6rem 1rem; cursor: pointer; transition: background 0.1s;
+      border-left: 2px solid transparent; display: flex; gap: 0.6rem; align-items: flex-start;
+    }
+    .event-item:hover { background: #F5F5F4; }
+    .event-item.active { background: var(--accent-bg); border-left-color: var(--accent); }
+    .event-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 0.3rem; }
+    .dot-red    { background: #EF4444; }
+    .dot-amber  { background: #F59E0B; box-shadow: 0 0 0 2px #FEF3C7; }
+    .dot-orange { background: #F97316; }
+    .dot-blue   { background: var(--accent2); }
+    .dot-green  { background: #22C55E; }
+    .event-body { flex: 1; min-width: 0; }
+    .event-title { font-size: 0.78rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .event-meta  { font-size: 0.68rem; color: var(--muted); margin-top: 0.1rem; }
+    .event-time  { font-size: 0.6rem; font-family: 'IBM Plex Mono', monospace; color: var(--subtle); margin-top: 0.2rem; }
+    .event-section-label { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--subtle); padding: 0.65rem 1rem 0.2rem; }
+
+    /* ─── Chat panel ────────────────────────────────────────────────────── */
+    .chat-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
+    .chat-context-bar {
+      padding: 0.5rem 1.25rem; border-bottom: 1px solid var(--border);
+      background: var(--paper); display: flex; align-items: center; gap: 0.75rem;
+      flex-shrink: 0; min-height: 42px;
+    }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+    .chat-input-bar {
+      border-top: 1px solid var(--border); background: var(--paper);
+      padding: 0.6rem 1.25rem; display: flex; gap: 0.5rem; align-items: center;
+      flex-shrink: 0;
+    }
+    .chat-field {
+      flex: 1; border: 1px solid var(--border); border-radius: 3px;
+      padding: 0.5rem 0.75rem; font-family: 'Inter', sans-serif; font-size: 0.8rem;
+      outline: none; background: var(--bg); color: var(--ink); resize: none;
+      line-height: 1.4; max-height: 80px; overflow-y: auto;
+    }
+    .chat-field:focus { border-color: var(--accent); background: var(--paper); }
+    .send-btn {
+      background: var(--ink); color: #fff; border: none; border-radius: 2px;
+      padding: 0.5rem 0.9rem; font-size: 0.75rem; font-weight: 500;
+      cursor: pointer; font-family: 'Inter', sans-serif; flex-shrink: 0; transition: background 0.12s;
+    }
+    .send-btn:hover { background: var(--accent); }
+    .send-btn:disabled { opacity: 0.35; cursor: not-allowed; background: var(--ink); }
+
+    /* ─── Messages ──────────────────────────────────────────────────────── */
+    .msg-row { display: flex; align-items: flex-start; gap: 0.6rem; max-width: 720px; }
+    .msg-row.user { flex-direction: row-reverse; margin-left: auto; }
+    .msg-avatar {
+      width: 26px; height: 26px; border-radius: 3px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.03em;
+    }
+    .avatar-agent { background: var(--ink); color: #fff; }
+    .avatar-user  { background: #E5E5E3; color: var(--muted); }
+    .msg-content { flex: 1; min-width: 0; }
+    .msg-sender { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--subtle); margin-bottom: 0.25rem; }
+    .msg-bubble {
+      display: inline-block; padding: 0.6rem 0.85rem; border-radius: 2px;
+      font-size: 0.8rem; line-height: 1.6; max-width: 100%;
+    }
+    .bubble-agent { background: var(--paper); border: 1px solid var(--border); color: var(--ink); }
+    .bubble-user  { background: var(--ink); color: #fff; }
+    .typing-dot { display: flex; gap: 3px; padding: 0.65rem 0.85rem; background: var(--paper); border: 1px solid var(--border); border-radius: 2px; }
+    .typing-dot span { width: 5px; height: 5px; background: var(--border2); border-radius: 50%; animation: bounce 1.2s ease-in-out infinite; }
+    .typing-dot span:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dot span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+
+    /* ─── Inline cards ──────────────────────────────────────────────────── */
+    .inline-card { margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+    .card-header { padding: 0.5rem 0.75rem; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .card-body { padding: 0.75rem; }
+    .card-header-recovery { background: var(--accent-bg); color: var(--accent); }
+    .card-header-chargeback { background: var(--orange-bg); color: var(--orange); }
+    .card-header-risk { background: var(--amber-bg); color: var(--amber); }
+
+    .recovery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 0.6rem; }
+    .recovery-cell { padding: 0.5rem 0.6rem; border-right: 1px solid var(--border); }
+    .recovery-cell:last-child { border-right: none; }
+    .rc-val { font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; font-weight: 500; text-transform: uppercase; }
+    .rc-lbl { font-size: 0.58rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 0.1rem; }
+
+    .shap-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+    .shap-label { width: 90px; font-size: 0.62rem; color: var(--muted); text-align: right; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .shap-track { flex: 1; height: 6px; background: #F0F0EF; border-radius: 2px; overflow: hidden; display: flex; }
+    .shap-bar { height: 100%; border-radius: 2px; transition: width 0.6s; }
+    .shap-val { width: 42px; font-size: 0.62rem; font-family: 'IBM Plex Mono', monospace; text-align: right; flex-shrink: 0; }
+
+    .letter-box { white-space: pre-wrap; font-family: 'Inter', sans-serif; font-size: 0.72rem; line-height: 1.75; color: #2D2D2C; max-height: 280px; overflow-y: auto; background: #FAFAFA; padding: 0.65rem; border-radius: 2px; border: 1px solid var(--border); }
+
+    .signal-tag { display: inline-flex; align-items: center; font-size: 0.62rem; font-weight: 600; padding: 0.15rem 0.4rem; border-radius: 2px; border: 1px solid var(--amber-bd); background: var(--amber-bg); color: var(--amber); margin: 0.15rem 0.15rem 0 0; }
+
+    /* ─── Welcome state ─────────────────────────────────────────────────── */
+    .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center; }
+    .welcome-title { font-family: 'Instrument Serif', serif; font-size: 2rem; font-style: italic; color: var(--ink); margin-bottom: 0.5rem; }
+    .welcome-sub { font-size: 0.8rem; color: var(--muted); line-height: 1.6; max-width: 400px; margin-bottom: 2rem; }
+    .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; width: 100%; max-width: 440px; }
+    .quick-card { padding: 0.9rem 1rem; background: var(--paper); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; text-align: left; transition: all 0.12s; font-family: 'Inter', sans-serif; }
+    .quick-card:hover { border-color: var(--accent); background: var(--accent-bg); }
+    .quick-card-title { font-size: 0.8rem; font-weight: 600; color: var(--ink); }
+    .quick-card-sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* ─── Audit panel ───────────────────────────────────────────────────── */
+    .audit-panel {
+      width: 244px; border-left: 1px solid var(--border);
+      background: var(--paper); display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .audit-header { padding: 0.75rem 1rem 0.5rem; border-bottom: 1px solid var(--border); }
+    .audit-title { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .audit-body { padding: 0.75rem 1rem; flex: 1; overflow-y: auto; }
+    .audit-field { margin-bottom: 0.75rem; }
+    .af-label { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--subtle); margin-bottom: 0.2rem; }
+    .af-value { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--ink); word-break: break-all; }
+    .af-value.accent { color: var(--accent); }
+    .af-value.red { color: var(--red); }
+    .af-value.green { color: var(--green); }
+    .audit-empty { color: var(--subtle); font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; line-height: 1.6; }
+    .audit-shap-section { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+
+    /* ─── Shared ─────────────────────────────────────────────────────────── */
+    .pill { display: inline-flex; align-items: center; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.1rem 0.35rem; border-radius: 2px; border: 1px solid; }
+    .pill-ok     { background: var(--green-bg); color: var(--green); border-color: var(--green-bd); }
+    .pill-err    { background: var(--red-bg); color: var(--red); border-color: var(--red-bd); }
+    .pill-warn   { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-bd); }
+    .pill-info   { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-bd); }
+    .pill-orange { background: var(--orange-bg); color: var(--orange); border-color: var(--orange-bd); }
+    .spinner { width: 11px; height: 11px; border: 2px solid #D4D4CF; border-top-color: var(--ink); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: #22C55E; animation: pulse 1.8s ease-in-out infinite; display: inline-block; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const api  = (path, opts={}) => fetch(path, opts).then(r => r.json()).catch(e => ({ status: 'error', message: String(e) }));
+const post = (path, body)    => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const fmt  = n => `₹${Number(n).toLocaleString('en-IN')}`;
+
+// ── Pre-defined activity events ────────────────────────────────────────────────
+const EVENTS = [
+  {
+    id: 'e1', type: 'payment_failed', dot: 'red',
+    title: 'UPI payment failed', meta: 'Rahul Mehta · ₹850', time: '2 min ago',
+    event_data: { transaction: { transaction_id: 'txn_rm_850_a', customer_name: 'Rahul Mehta', product_name: 'Lunch Order', amount: 850, channel: 'upi', decline_code: 'OTP_TIMEOUT', hour_of_day: 13, day_of_week: 2, is_weekend: false, retry_count_so_far: 3, customer_txn_history_len: 78, amount_vs_customer_avg_ratio: 0.9, time_since_last_failure_hours: 0.05, merchant_category: 'food_delivery', merchant_name: 'TechGadgets.in' } }
+  },
+  {
+    id: 'e2', type: 'payment_failed', dot: 'red',
+    title: 'Card auth failed', meta: 'Priya Sharma · ₹48,000', time: '8 min ago',
+    event_data: { transaction: { transaction_id: 'txn_ps_48k_a', customer_name: 'Priya Sharma', product_name: 'Diamond Necklace Set', amount: 48000, channel: 'card', decline_code: 'FRAUD_SUSPECTED', hour_of_day: 2, day_of_week: 6, is_weekend: true, retry_count_so_far: 0, customer_txn_history_len: 12, amount_vs_customer_avg_ratio: 3.8, time_since_last_failure_hours: 1.2, merchant_category: 'jewellery', merchant_name: 'TechGadgets.in' } }
+  },
+  {
+    id: 'e3', type: 'anomaly_alert', dot: 'amber',
+    title: 'Velocity anomaly', meta: 'Vikram Singh · ₹990', time: '5 min ago',
+    event_data: { transaction: { customer_name: 'Vikram Singh', amount: 990, channel: 'wallet', signals: ['5 transactions in 2 minutes', '2.2× above average spend', 'Off-hours — 11:45 PM'] } }
+  },
+  {
+    id: 'e4', type: 'payment_failed', dot: 'red',
+    title: 'Credit limit exceeded', meta: 'Arun Kumar · ₹32,500', time: '15 min ago',
+    event_data: { transaction: { transaction_id: 'txn_ak_32k_a', customer_name: 'Arun Kumar', product_name: 'Samsung Galaxy S24 Ultra', amount: 32500, channel: 'netbanking', decline_code: 'CREDIT_LIMIT_EXCEEDED', hour_of_day: 18, day_of_week: 1, is_weekend: false, retry_count_so_far: 1, customer_txn_history_len: 8, amount_vs_customer_avg_ratio: 1.6, time_since_last_failure_hours: 3.0, merchant_category: 'electronics', merchant_name: 'TechGadgets.in' } }
+  },
+  {
+    id: 'e5', type: 'chargeback', dot: 'orange',
+    title: 'Chargeback filed', meta: 'Rajiv Anand · ₹14,999', time: '1 hr ago',
+    event_data: { chargeback: { transaction_id: 'pay_QdW8xZ3mN', amount: 14999, channel: 'card', customer_name: 'Rajiv Anand', reason_code: '4853', reason: 'Item not received', product_name: 'Wireless Headphones', merchant_name: 'TechGadgets.in', delivery_proof: 'DTDC tracking #DD459821 confirmed delivered 22-Aug-2026 at 14:32' } }
+  },
+  {
+    id: 'e6', type: 'payment_failed', dot: 'red',
+    title: 'Gateway timeout', meta: 'Sneha Patel · ₹2,299', time: '22 min ago',
+    event_data: { transaction: { transaction_id: 'txn_sp_2299_a', customer_name: 'Sneha Patel', product_name: 'Running Shoes', amount: 2299, channel: 'card', decline_code: 'UPSTREAM_ERROR', hour_of_day: 10, day_of_week: 0, is_weekend: false, retry_count_so_far: 0, customer_txn_history_len: 34, amount_vs_customer_avg_ratio: 1.0, time_since_last_failure_hours: 0, merchant_category: 'ecommerce', merchant_name: 'TechGadgets.in' } }
+  },
+  {
+    id: 'e7', type: 'chargeback', dot: 'orange',
+    title: 'Chargeback filed', meta: 'Divya Nair · ₹3,200', time: '3 hrs ago',
+    event_data: { chargeback: { transaction_id: 'pay_KmP2rX9qL', amount: 3200, channel: 'upi', customer_name: 'Divya Nair', reason_code: '4855', reason: 'Item not as described', product_name: 'Herbal Skincare Kit', merchant_name: 'TechGadgets.in', delivery_proof: 'BlueDart AWB 789234 delivered 19-Aug-2026 with photo confirmation' } }
+  },
+  {
+    id: 'e8', type: 'finance_question', dot: 'blue',
+    title: 'Settlement due tomorrow', meta: 'Ask about expected amount', time: 'Today',
+    event_data: { question: 'What is my estimated settlement amount, how many payments were recovered today, and what is my current anomaly rate?' }
+  },
+];
+
+const TYPE_LABELS = {
+  payment_failed:   'Failed payment',
+  anomaly_alert:    'Risk alert',
+  chargeback:       'Chargeback',
+  finance_question: 'Financial insight',
+};
+
+// ── SHAP bars (CSS-based, no canvas) ──────────────────────────────────────────
+function ShapBars({ factors }) {
+  if (!factors || factors.length === 0) return null;
+  const top = factors.slice(0, 4);
+  const maxVal = Math.max(...top.map(f => Math.abs(f.impact)), 0.001);
+  return (
+    <div style={{ marginTop: '0.6rem' }}>
+      <div style={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--subtle)', marginBottom: '0.4rem' }}>
+        Risk factors
+      </div>
+      {top.map((f, i) => {
+        const pct = (Math.abs(f.impact) / maxVal) * 100;
+        const isRisk = f.impact > 0;
+        return (
+          <div key={i} className="shap-row">
+            <div className="shap-label">{f.feature.replace(/_/g, ' ')}</div>
+            <div className="shap-track">
+              {isRisk
+                ? <div className="shap-bar" style={{ width: pct + '%', background: '#EF4444', marginLeft: 0 }} />
+                : <div className="shap-bar" style={{ width: pct + '%', background: '#22C55E', marginLeft: 'auto' }} />
+              }
+            </div>
+            <div className="shap-val" style={{ color: isRisk ? 'var(--red)' : 'var(--green)' }}>
+              {isRisk ? '+' : ''}{f.impact.toFixed(3)}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ fontSize: '0.58rem', color: 'var(--subtle)', marginTop: '0.3rem' }}>Red = increases risk · Green = reduces risk</div>
+    </div>
+  );
+}
+
+// ── Recovery action card ───────────────────────────────────────────────────────
+function RecoveryCard({ data }) {
+  const { action, confidence, predicted_class, shap_factors, is_anomaly, record_id, policy_check } = data;
+  const actionColor = action === 'escalate' ? 'var(--red)' : action === 'discount' ? '#92400E' : 'var(--green)';
+  return (
+    <div className="inline-card">
+      <div className="card-header card-header-recovery">
+        <span>AI Decision</span>
+        {is_anomaly && <span className="pill pill-warn">Risk flag</span>}
+      </div>
+      <div className="card-body">
+        <div className="recovery-grid">
+          <div className="recovery-cell">
+            <div className="rc-val" style={{ color: actionColor }}>{action?.replace(/_/g, ' ')}</div>
+            <div className="rc-lbl">Action taken</div>
+          </div>
+          <div className="recovery-cell">
+            <div className="rc-val">{confidence ? (confidence * 100).toFixed(0) + '%' : '—'}</div>
+            <div className="rc-lbl">Confidence</div>
+          </div>
+        </div>
+        <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
+          Cause: <span style={{ color: 'var(--ink)' }}>{(predicted_class || '').replace(/_/g, ' ')}</span>
+          &nbsp;·&nbsp;Policy: <span style={{ color: 'var(--ink)' }}>{policy_check}</span>
+        </div>
+        <ShapBars factors={shap_factors} />
+        {record_id && (
+          <div style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', fontSize: '0.62rem', fontFamily: "'IBM Plex Mono',monospace", color: 'var(--subtle)' }}>
+            Audit record · {record_id.substring(0, 16)}…
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Chargeback letter card ─────────────────────────────────────────────────────
+function ChargebackCard({ data }) {
+  const { letter, hash, cb } = data;
+  return (
+    <div className="inline-card">
+      <div className="card-header card-header-chargeback">
+        <span>Dispute Response · Code {cb?.reason_code}</span>
+        <span className="mono" style={{ fontSize: '0.58rem', opacity: 0.7 }}>{hash}…</span>
+      </div>
+      <div className="card-body">
+        <div className="letter-box">{letter}</div>
+        <div style={{ marginTop: '0.5rem', fontSize: '0.62rem', color: 'var(--subtle)', fontFamily: "'IBM Plex Mono',monospace" }}>
+          SHA-256 fingerprint stored · Ready to submit to card network
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Risk alert card ────────────────────────────────────────────────────────────
+function RiskAlertCard({ data }) {
+  const { customer_name, amount, signals } = data;
+  return (
+    <div className="inline-card">
+      <div className="card-header card-header-risk">
+        <span>Risk Signals Detected</span>
+        <span>{fmt(amount)}</span>
+      </div>
+      <div className="card-body">
+        <div style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.5rem' }}>{customer_name}</div>
+        <div>
+          {(signals || []).map((s, i) => (
+            <span key={i} className="signal-tag">{s}</span>
+          ))}
+        </div>
+        <div style={{ marginTop: '0.75rem', fontSize: '0.7rem', color: 'var(--muted)' }}>
+          Flagged by our real-time risk model. Act quickly to prevent potential loss.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Single chat message ────────────────────────────────────────────────────────
+function ChatMessage({ msg }) {
+  const isUser = msg.role === 'user';
+  return (
+    <div className={`msg-row ${isUser ? 'user' : ''}`}>
+      <div className={`msg-avatar ${isUser ? 'avatar-user' : 'avatar-agent'}`}>
+        {isUser ? 'You' : 'AI'}
+      </div>
+      <div className="msg-content">
+        <div className="msg-sender">{isUser ? 'You' : 'Attest'}</div>
+        <div className={`msg-bubble ${isUser ? 'bubble-user' : 'bubble-agent'}`}>
+          {msg.content}
+        </div>
+        {!isUser && msg.card_type === 'recovery_action' && msg.card_data && (
+          <RecoveryCard data={msg.card_data} />
+        )}
+        {!isUser && msg.card_type === 'chargeback_letter' && msg.card_data && (
+          <ChargebackCard data={msg.card_data} />
+        )}
+        {!isUser && msg.card_type === 'risk_alert' && msg.card_data && (
+          <RiskAlertCard data={msg.card_data} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Audit side panel ───────────────────────────────────────────────────────────
+function AuditPanel({ record }) {
+  if (!record || !record.record_id) {
+    return (
+      <aside className="audit-panel">
+        <div className="audit-header">
+          <div className="audit-title">Cryptographic Proof</div>
+        </div>
+        <div className="audit-body">
+          <p className="audit-empty">
+            Interact with a payment event to see its cryptographic audit record here.
+            {'\n\n'}
+            Every AI action is SHA-256 hashed and recorded.
+          </p>
+        </div>
+      </aside>
+    );
+  }
+  const { record_id, sha256_hex, policy_check, is_anomaly, shap_factors } = record;
+  return (
+    <aside className="audit-panel">
+      <div className="audit-header">
+        <div className="audit-title">Cryptographic Proof</div>
+      </div>
+      <div className="audit-body">
+        <div className="audit-field">
+          <div className="af-label">Record ID</div>
+          <div className="af-value accent" style={{ fontSize: '0.62rem' }}>
+            {record_id ? record_id.substring(0, 18) + '…' : '—'}
+          </div>
+        </div>
+        <div className="audit-field">
+          <div className="af-label">SHA-256</div>
+          <div className="af-value" style={{ fontSize: '0.62rem', wordBreak: 'break-all' }}>
+            {sha256_hex ? sha256_hex.substring(0, 24) + '…' : '—'}
+          </div>
+        </div>
+        <div className="audit-field">
+          <div className="af-label">Policy gate</div>
+          <div className={`af-value ${policy_check === 'ALLOWED' ? 'green' : policy_check === 'BLOCKED' ? 'red' : ''}`}>
+            {policy_check || '—'}
+          </div>
+        </div>
+        <div className="audit-field">
+          <div className="af-label">Risk flag</div>
+          <div className={`af-value ${is_anomaly ? 'red' : 'green'}`}>
+            {is_anomaly ? 'ANOMALY DETECTED' : 'CLEAR'}
+          </div>
+        </div>
+        {shap_factors && shap_factors.length > 0 && (
+          <div className="audit-shap-section">
+            <div style={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--subtle)', marginBottom: '0.5rem' }}>
+              Risk factor weights
+            </div>
+            <ShapBars factors={shap_factors} />
+          </div>
+        )}
+        <div style={{ marginTop: '1rem', padding: '0.5rem', background: 'var(--accent-bg)', border: '1px solid var(--accent-bd)', borderRadius: 2, fontSize: '0.62rem', color: 'var(--accent)', fontFamily: "'IBM Plex Mono',monospace", lineHeight: 1.6 }}>
+          Merkle-batched<br/>Anchored on Polygon Amoy
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ── Context bar (shows selected event type) ────────────────────────────────────
+function ContextBar({ event }) {
+  if (!event) return (
+    <div className="chat-context-bar">
+      <span style={{ fontSize: '0.72rem', color: 'var(--subtle)' }}>
+        Select an event from the left, or ask anything below.
+      </span>
+    </div>
+  );
+  const dotClass = `dot-${event.dot}`;
+  return (
+    <div className="chat-context-bar">
+      <div className={`event-dot ${dotClass}`} style={{ width: 8, height: 8, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--ink)' }}>{event.title}</div>
+        <div style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>{event.meta} · {TYPE_LABELS[event.type] || event.type}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Welcome screen ─────────────────────────────────────────────────────────────
+function Welcome({ onQuickAction }) {
+  const actions = [
+    { title: 'Recover a failed payment', sub: 'Diagnose and resolve with AI', eventId: 'e1' },
+    { title: 'Respond to a chargeback', sub: 'Auto-draft dispute letter', eventId: 'e5' },
+    { title: 'Review fraud alert', sub: 'Assess risk and take action', eventId: 'e3' },
+    { title: 'Check my settlement', sub: 'Ask about finances & cash flow', eventId: 'e8' },
+  ];
+  return (
+    <div className="welcome">
+      <h1 className="welcome-title">How can I help?</h1>
+      <p className="welcome-sub">
+        Select an event from the activity feed, or pick a quick action below.
+        I can recover failed payments, fight chargebacks, flag fraud, and answer financial questions.
+      </p>
+      <div className="quick-grid">
+        {actions.map(a => (
+          <button key={a.eventId} className="quick-card" onClick={() => onQuickAction(a.eventId)}>
+            <div className="quick-card-title">{a.title}</div>
+            <div className="quick-card-sub">{a.sub}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ───────────────────────────────────────────────────────────────────
+function App() {
+  const [selectedId, setSelectedId]     = useState(null);
+  const [conversations, setConversations] = useState({});  // { eventId: [messages] }
+  const [inputVal, setInputVal]         = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [auditRecord, setAuditRecord]   = useState(null);
+  const [stats, setStats]               = useState(null);
+  const msgsEndRef = useRef(null);
+
+  const selectedEvent = EVENTS.find(e => e.id === selectedId);
+  const currentMsgs   = conversations[selectedId] || [];
+
+  // Scroll chat to bottom
+  useEffect(() => {
+    msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentMsgs, loading]);
+
+  // Live stats polling
+  useEffect(() => {
+    const f = () => api('/api/stats').then(r => { if (r.status === 'success') setStats(r.data); });
+    f();
+    const iv = setInterval(f, 8000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const addMessages = (eventId, ...msgs) => {
+    setConversations(prev => ({ ...prev, [eventId]: [...(prev[eventId] || []), ...msgs] }));
+  };
+
+  const callAgent = async (eventId, message, isFirst) => {
+    const event = EVENTS.find(e => e.id === eventId);
+    if (!event) return;
+    setLoading(true);
+    const history = (conversations[eventId] || []).map(m => ({ role: m.role, content: m.content }));
+    const res = await post('/api/agent', {
+      message:    isFirst ? '' : message,
+      event_type: event.type,
+      event_data: event.event_data,
+      history:    history,
+      event_id:   eventId,
+    });
+    setLoading(false);
+    if (res.status === 'success') {
+      const agentMsg = {
+        id: Date.now() + Math.random(),
+        role: 'assistant',
+        content: res.message || '—',
+        card_type: res.card_type || null,
+        card_data: res.card_data || null,
+      };
+      addMessages(eventId, agentMsg);
+      if (res.audit_record && res.audit_record.record_id) {
+        setAuditRecord(res.audit_record);
+      }
+    }
+  };
+
+  const selectEvent = async (eventId) => {
+    setSelectedId(eventId);
+    setInputVal('');
+    // If first time opening this event, auto-trigger the agent
+    if (!conversations[eventId] || conversations[eventId].length === 0) {
+      await callAgent(eventId, '', true);
+    }
+  };
+
+  const sendMessage = async () => {
+    const msg = inputVal.trim();
+    if (!msg || loading) return;
+    setInputVal('');
+    // If no event selected, treat as finance question
+    let eventId = selectedId;
+    if (!eventId) {
+      // Create a transient finance event
+      const tempId = 'freeform_' + Date.now();
+      const tempEvent = {
+        id: tempId, type: 'finance_question', dot: 'blue',
+        title: 'Question', meta: msg.substring(0, 40), time: 'now',
+        event_data: { question: msg }
+      };
+      EVENTS.push(tempEvent);
+      setSelectedId(tempId);
+      addMessages(tempId, { id: Date.now(), role: 'user', content: msg });
+      setLoading(true);
+      const res = await post('/api/agent', {
+        message: '', event_type: 'finance_question',
+        event_data: { question: msg }, history: [], event_id: tempId,
+      });
+      setLoading(false);
+      if (res.status === 'success') {
+        addMessages(tempId, { id: Date.now() + 1, role: 'assistant', content: res.message || '—', card_type: null, card_data: null });
+        if (res.audit_record?.record_id) setAuditRecord(res.audit_record);
+      }
+      return;
+    }
+    addMessages(eventId, { id: Date.now(), role: 'user', content: msg });
+    await callAgent(eventId, msg, false);
+  };
+
+  const handleKeyDown = e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  // Count unread-ish events by type
+  const failedCount   = EVENTS.filter(e => e.type === 'payment_failed').length;
+  const alertCount    = EVENTS.filter(e => e.type === 'anomaly_alert').length;
+  const chargebackCount = EVENTS.filter(e => e.type === 'chargeback').length;
+
+  const eventsBySection = [
+    { label: `${failedCount} failed payments`, types: ['payment_failed'] },
+    { label: `${alertCount} risk alerts`, types: ['anomaly_alert'] },
+    { label: `${chargebackCount} chargebacks`, types: ['chargeback'] },
+    { label: 'Financial insights', types: ['finance_question'] },
+  ];
+
+  return (
+    <div className="shell">
+      {/* ── Header ── */}
+      <header className="header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: '1.4rem', letterSpacing: '-0.01em', color: 'var(--ink)' }}>
+            Attest
+          </div>
+          <div style={{ fontSize: '0.62rem', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted)', borderLeft: '1px solid var(--border)', paddingLeft: '0.85rem' }}>
+            AI Payment Intelligence
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          {stats && (
+            <>
+              {[
+                [stats.total, 'Decisions'],
+                [(stats.verified || 0) + '/' + stats.total, 'Verified'],
+                [stats.anomalies || 0, 'Risk flags'],
+              ].map(([v, l]) => (
+                <div key={l} style={{ textAlign: 'right' }}>
+                  <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '0.88rem', fontWeight: 500 }}>{v}</div>
+                  <div style={{ fontSize: '0.57rem', fontWeight: 600, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--subtle)' }}>{l}</div>
+                </div>
+              ))}
+            </>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span className="pulse-dot" />
+            <span className="mono" style={{ fontSize: '0.62rem', color: 'var(--muted)' }}>LIVE</span>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Workspace ── */}
+      <div className="workspace">
+        {/* Left: Events feed */}
+        <aside className="events-panel">
+          <div className="events-header">
+            <span className="events-title">Activity</span>
+            <span className="mono" style={{ fontSize: '0.62rem', color: 'var(--subtle)' }}>{EVENTS.filter(e => e.id.startsWith('e')).length} events</span>
+          </div>
+          <div className="events-list">
+            {eventsBySection.map(section => {
+              const sectionEvents = EVENTS.filter(e => section.types.includes(e.type) && e.id.startsWith('e'));
+              if (!sectionEvents.length) return null;
+              return (
+                <div key={section.label}>
+                  <div className="event-section-label">{section.label}</div>
+                  {sectionEvents.map(ev => (
+                    <div
+                      key={ev.id}
+                      className={`event-item ${selectedId === ev.id ? 'active' : ''}`}
+                      onClick={() => selectEvent(ev.id)}
+                    >
+                      <div className={`event-dot dot-${ev.dot}`} />
+                      <div className="event-body">
+                        <div className="event-title">{ev.title}</div>
+                        <div className="event-meta">{ev.meta}</div>
+                        <div className="event-time">{ev.time}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* Center: Chat */}
+        <main className="chat-panel">
+          <ContextBar event={selectedEvent} />
+          <div className="chat-messages">
+            {selectedId && currentMsgs.length === 0 && loading && (
+              <div className="msg-row">
+                <div className="msg-avatar avatar-agent">AI</div>
+                <div className="msg-content">
+                  <div className="msg-sender">Attest</div>
+                  <div className="typing-dot">
+                    <span /><span /><span />
+                  </div>
+                </div>
+              </div>
+            )}
+            {!selectedId && (
+              <Welcome onQuickAction={(eventId) => selectEvent(eventId)} />
+            )}
+            {currentMsgs.map(m => (
+              <ChatMessage key={m.id} msg={m} />
+            ))}
+            {loading && currentMsgs.length > 0 && (
+              <div className="msg-row">
+                <div className="msg-avatar avatar-agent">AI</div>
+                <div className="msg-content">
+                  <div className="msg-sender">Attest</div>
+                  <div className="typing-dot">
+                    <span /><span /><span />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={msgsEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="chat-input-bar">
+            <textarea
+              className="chat-field"
+              rows={1}
+              placeholder={selectedId ? 'Reply or ask a follow-up question…' : 'Ask anything — settlement, fraud, recovery…'}
+              value={inputVal}
+              onChange={e => setInputVal(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={loading}
+            />
+            <button className="send-btn" onClick={sendMessage} disabled={!inputVal.trim() || loading}>
+              {loading ? <span className="spinner" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} /> : 'Send'}
+            </button>
+          </div>
+        </main>
+
+        {/* Right: Audit proof */}
+        <AuditPanel record={auditRecord} />
+      </div>
+
+      <footer className="footer">
+        <span>Attest · AI payment intelligence · Razorpay AI Buildathon 2026</span>
+        <span>Groq qwen3.8-27b · XGBoost + Isolation Forest · Polygon Amoy blockchain proof</span>
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
