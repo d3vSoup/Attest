@@ -518,6 +518,8 @@ function App() {
   const selectedEvent = EVENTS.find(e => e.id === selectedId);
   const currentMsgs   = conversations[selectedId] || [];
 
+  const fetchStats = () => api('/api/stats').then(r => { if (r.status === 'success') setStats(r.data); });
+
   // Scroll chat to bottom
   useEffect(() => {
     msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -525,9 +527,8 @@ function App() {
 
   // Live stats polling
   useEffect(() => {
-    const f = () => api('/api/stats').then(r => { if (r.status === 'success') setStats(r.data); });
-    f();
-    const iv = setInterval(f, 8000);
+    fetchStats();
+    const iv = setInterval(fetchStats, 8000);
     return () => clearInterval(iv);
   }, []);
 
@@ -603,6 +604,30 @@ function App() {
     }
     addMessages(eventId, { id: Date.now(), role: 'user', content: msg });
     await callAgent(eventId, msg, false);
+  };
+
+  const runTamperDemo = async () => {
+    setLoading(true);
+    const res = await post('/api/demo/tamper', { n: 5 });
+    setLoading(false);
+    if (res.status === 'success') {
+      alert("Tamper test complete: " + res.message + ". Refreshing verification stats...");
+      fetchStats();
+    } else {
+      alert("Error: " + (res.detail || 'Failed'));
+    }
+  };
+
+  const runKaggleReset = async () => {
+    setLoading(true);
+    const res = await post('/api/demo/reset', {});
+    setLoading(false);
+    if (res.status === 'success') {
+      alert("Reset complete: " + res.message + " Refreshing stats...");
+      fetchStats();
+    } else {
+      alert("Error: " + (res.detail || 'Failed'));
+    }
   };
 
   const handleKeyDown = e => {
@@ -690,6 +715,27 @@ function App() {
                 </div>
               );
             })}
+            
+            <div className="event-section-label" style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.8rem' }}>Demo Controls (Phase 12)</div>
+            
+            <div className={`event-item`} onClick={runTamperDemo} style={{ opacity: loading ? 0.5 : 1 }}>
+              <div className="event-dot dot-red" />
+              <div className="event-body">
+                <div className="event-title">Run Tamper Test</div>
+                <div className="event-meta">Silently corrupt 5 records</div>
+                <div className="event-time">Proves cryptographic seal</div>
+              </div>
+            </div>
+
+            <div className={`event-item`} onClick={runKaggleReset} style={{ opacity: loading ? 0.5 : 1 }}>
+              <div className="event-dot dot-blue" />
+              <div className="event-body">
+                <div className="event-title">Load Kaggle Data</div>
+                <div className="event-meta">Reset DB & re-ingest CSV</div>
+                <div className="event-time">Takes ~20 seconds</div>
+              </div>
+            </div>
+            
           </div>
         </aside>
 

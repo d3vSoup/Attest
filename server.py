@@ -1091,6 +1091,39 @@ Formal prose only. No bullets. No emojis."""
     return {"status": "success", "summary": answer, "source": "groq-llama3.3-70b"}
 
 
+# ── Demo Controls ──────────────────────────────────────────────────────────────
+class TamperRequest(BaseModel):
+    n: int = 5
+
+@app.post("/api/demo/tamper")
+async def demo_tamper(req: TamperRequest):
+    """Silently corrupt N records to trigger HASH_MISMATCH."""
+    import sys
+    import subprocess
+    ROOT = Path(__file__).parent.parent
+    result = subprocess.run(
+        [sys.executable, "demo/tamper_test.py", "--n", str(req.n)],
+        cwd=ROOT, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=result.stderr)
+    return {"status": "success", "message": f"Silently corrupted {req.n} records"}
+
+@app.post("/api/demo/reset")
+async def demo_reset():
+    """Wipe DB and reload Kaggle data + retrain models."""
+    import sys
+    import subprocess
+    ROOT = Path(__file__).parent.parent
+    # We run the reset script
+    result = subprocess.run(
+        [sys.executable, "demo/tamper_test.py", "--reset", "--limit", "150"],
+        cwd=ROOT, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=result.stderr)
+    return {"status": "success", "message": "Database reset and Kaggle data reloaded."}
+
 # ── Frontend ───────────────────────────────────────────────────────────────────
 @app.get("/")
 async def serve_index():
