@@ -10,6 +10,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -190,6 +191,78 @@
     @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    /* ─── Analytics Panel ─────────────────────────────────────────────────── */
+    .analytics-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.15s ease;
+    }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .analytics-modal {
+      background: var(--paper); border: 1px solid var(--border2);
+      border-radius: 6px; width: 92vw; max-width: 1100px; height: 86vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+      animation: slideUp 0.2s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .analytics-header {
+      padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .analytics-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border); flex-shrink: 0;
+      padding: 0 1.25rem; background: var(--bg);
+    }
+    .analytics-tab {
+      padding: 0.55rem 1rem; font-size: 0.7rem; font-weight: 600; cursor: pointer;
+      border-bottom: 2px solid transparent; color: var(--muted); transition: all 0.12s;
+      letter-spacing: 0.04em; text-transform: uppercase; font-family: 'IBM Plex Mono', monospace;
+      background: none; border-top: none; border-left: none; border-right: none;
+    }
+    .analytics-tab:hover { color: var(--ink); }
+    .analytics-tab.active { border-bottom-color: var(--accent); color: var(--accent); }
+    .analytics-body { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem; }
+    .analytics-close {
+      width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 3px;
+      background: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; color: var(--muted); transition: all 0.1s;
+    }
+    .analytics-close:hover { background: var(--red-bg); border-color: var(--red-bd); color: var(--red); }
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .stat-card {
+      padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 4px;
+      background: var(--paper);
+    }
+    .stat-card-val { font-family: 'IBM Plex Mono', monospace; font-size: 1.3rem; font-weight: 500; }
+    .stat-card-lbl { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 0.2rem; }
+    .stat-card-sub { font-size: 0.62rem; color: var(--subtle); margin-top: 0.3rem; }
+    .chart-wrap { border: 1px solid var(--border); border-radius: 4px; padding: 1rem; background: var(--paper); margin-bottom: 1rem; }
+    .chart-title { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem; display: flex; align-items: center; justify-content: space-between; }
+    .pipeline-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .pipeline-item {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 3px;
+      background: var(--paper); font-size: 0.72rem; transition: background 0.1s;
+    }
+    .pipeline-item:hover { background: var(--bg); }
+    .pipeline-stage {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      font-size: 0.58rem; font-weight: 700; padding: 0.12rem 0.4rem;
+      border-radius: 2px; border: 1px solid; text-transform: uppercase; letter-spacing: 0.06em;
+      flex-shrink: 0; width: 72px; justify-content: center;
+    }
+    .stage-anchored { background: var(--green-bg); color: var(--green); border-color: var(--green-bd); }
+    .stage-batched  { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-bd); }
+    .stage-hashed   { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-bd); }
+    .stage-processed { background: #F4F4F3; color: var(--muted); border-color: var(--border2); }
+    .channel-bar-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
+    .channel-bar-label { width: 70px; font-size: 0.65rem; color: var(--muted); text-align: right; flex-shrink: 0; }
+    .channel-bar-track { flex: 1; height: 10px; background: #F0F0EF; border-radius: 3px; overflow: hidden; }
+    .channel-bar-fill { height: 100%; border-radius: 3px; transition: width 1s; }
+    .channel-bar-val { width: 50px; font-size: 0.62rem; font-family: 'IBM Plex Mono', monospace; flex-shrink: 0; }
+    .loading-spinner-lg { display: flex; align-items: center; justify-content: center; height: 200px; gap: 0.5rem; color: var(--muted); font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -505,6 +578,376 @@ function Welcome({ onQuickAction }) {
   );
 }
 
+// ── Analytics Panel ────────────────────────────────────────────────────────────
+function useChartJs(canvasRef, buildConfig, deps) {
+  useEffect(() => {
+    if (!canvasRef.current || !window.Chart) return;
+    const ctx = canvasRef.current.getContext('2d');
+    const chart = new window.Chart(ctx, buildConfig());
+    return () => chart.destroy();
+  }, deps);
+}
+
+function MonteCarloTab() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const canvasRef = useRef(null);
+  const volRef = useRef(null);
+
+  useEffect(() => {
+    setLoading(true);
+    api('/api/monte-carlo?n_simulations=1000&n_days=30').then(r => {
+      if (r.status === 'success') setData(r.data);
+      setLoading(false);
+    });
+  }, []);
+
+  useChartJs(canvasRef, () => {
+    if (!data) return {};
+    const labels = data.days.map(d => `Day ${d}`);
+    const sampleDatasets = (data.sample_paths || []).slice(0, 8).map((path, i) => ({
+      data: path,
+      borderColor: `rgba(79,70,229,${0.06 + i * 0.02})`,
+      borderWidth: 1, pointRadius: 0, fill: false, tension: 0.3,
+    }));
+    return {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          ...sampleDatasets,
+          { label: 'P95 (Best)', data: data.p95, borderColor: '#22C55E', borderWidth: 2, borderDash: [4,2], pointRadius: 0, fill: '+1', backgroundColor: 'rgba(34,197,94,0.06)', tension: 0.4 },
+          { label: 'P50 (Median)', data: data.p50, borderColor: '#4F46E5', borderWidth: 2.5, pointRadius: 0, fill: false, tension: 0.4 },
+          { label: 'P05 (Worst)', data: data.p05, borderColor: '#EF4444', borderWidth: 2, borderDash: [4,2], pointRadius: 0, fill: false, tension: 0.4 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 800 },
+        plugins: { legend: { display: true, position: 'bottom', labels: { font: { size: 10, family: 'IBM Plex Mono' }, boxWidth: 16, padding: 12 } }, tooltip: { callbacks: { label: ctx => `₹${ctx.parsed.y.toLocaleString('en-IN', {maximumFractionDigits:0})}` } } },
+        scales: {
+          x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, maxTicksLimit: 8 } },
+          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, callback: v => `₹${(v/1e6).toFixed(1)}M` } },
+        },
+      },
+    };
+  }, [data]);
+
+  useChartJs(volRef, () => {
+    if (!data) return {};
+    return {
+      type: 'bar',
+      data: {
+        labels: Array.from({length: data.volatility_series.length}, (_,i) => `D${i+1}`),
+        datasets: [{ label: 'Annualised Volatility %', data: data.volatility_series, backgroundColor: 'rgba(79,70,229,0.55)', borderRadius: 2 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 8, family: 'IBM Plex Mono' }, maxTicksLimit: 10 } },
+          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, callback: v => `${v.toFixed(0)}%` } },
+        },
+      },
+    };
+  }, [data]);
+
+  if (loading) return <div className="loading-spinner-lg"><span className="spinner" />Loading simulation…</div>;
+  if (!data) return <div style={{color:'var(--red)', padding:'1rem'}}>Failed to load Monte Carlo data.</div>;
+
+  const fmt_inr = v => `₹${(v/1e6).toFixed(2)}M`;
+
+  return (
+    <div>
+      <div className="stat-grid">
+        {[
+          ['Daily Average', fmt_inr(data.current_daily_avg), 'Current baseline'],
+          ['VaR (P05)', fmt_inr(data.var_95), '95% worst-case/day'],
+          ['30d Expected', fmt_inr(data.expected_30d_total), 'Median scenario'],
+          ['σ (Volatility)', `${data.sigma_annual_pct.toFixed(0)}%/yr`, `μ drift: ${data.mu_annual_pct > 0 ? '+' : ''}${data.mu_annual_pct.toFixed(1)}%`],
+        ].map(([lbl, val, sub]) => (
+          <div className="stat-card" key={lbl}>
+            <div className="stat-card-val">{val}</div>
+            <div className="stat-card-lbl">{lbl}</div>
+            <div className="stat-card-sub">{sub}</div>
+          </div>
+        ))}
+      </div>
+      <div className="chart-wrap">
+        <div className="chart-title">
+          <span>30-Day Settlement Fan Chart — {data.n_simulations.toLocaleString()} simulations (GBM)</span>
+          <span style={{color:'var(--subtle)', fontWeight:400}}>P5 / P50 / P95 confidence bands</span>
+        </div>
+        <div style={{height: 280}}><canvas ref={canvasRef} /></div>
+      </div>
+      <div className="chart-wrap">
+        <div className="chart-title"><span>Rolling Settlement Volatility (Historical 60-Day Window, Annualised)</span></div>
+        <div style={{height: 150}}><canvas ref={volRef} /></div>
+      </div>
+    </div>
+  );
+}
+
+function SIRTab() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    setLoading(true);
+    api('/api/fraud-sir').then(r => {
+      if (r.status === 'success') setData(r.data);
+      setLoading(false);
+    });
+  }, []);
+
+  useChartJs(canvasRef, () => {
+    if (!data) return {};
+    const agg = data.aggregate;
+    const labels = data.steps.map(s => `Day ${s}`);
+    return {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Susceptible (S)', data: agg.S, borderColor: '#3730A3', backgroundColor: 'rgba(55,48,163,0.08)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.4 },
+          { label: 'Infected (I) — Active Fraud', data: agg.I, borderColor: '#EF4444', backgroundColor: 'rgba(239,68,68,0.10)', fill: true, borderWidth: 2.5, pointRadius: 0, tension: 0.4 },
+          { label: 'Recovered (R) — Blocked/Resolved', data: agg.R, borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.4 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 800 },
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 10, family: 'IBM Plex Mono' }, boxWidth: 16 } }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}` } } },
+        scales: {
+          x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, maxTicksLimit: 10 } },
+          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' } } },
+        },
+      },
+    };
+  }, [data]);
+
+  if (loading) return <div className="loading-spinner-lg"><span className="spinner" />Running SIR simulation…</div>;
+  if (!data) return <div style={{color:'var(--red)', padding:'1rem'}}>Failed to load SIR data.</div>;
+
+  const maxR0 = Math.max(...Object.values(data.channel_r0));
+
+  return (
+    <div>
+      <div className="stat-grid">
+        {[
+          ['Overall R₀', data.overall_r0.toFixed(3), data.overall_r0 < 1 ? '🟢 Fraud contained' : '🔴 Spreading'],
+          ['Peak Infected', data.peak_infected.toLocaleString(), `Day ${data.peak_day}`],
+          ['Total Population', data.total_population.toLocaleString(), 'Across all channels'],
+          ['Containment Rate', `${(data.containment_ratio*100).toFixed(1)}%`, 'Blocked by day 60'],
+        ].map(([lbl, val, sub]) => (
+          <div className="stat-card" key={lbl}>
+            <div className="stat-card-val" style={{fontSize:'1.1rem'}}>{val}</div>
+            <div className="stat-card-lbl">{lbl}</div>
+            <div className="stat-card-sub">{sub}</div>
+          </div>
+        ))}
+      </div>
+      <div className="chart-wrap">
+        <div className="chart-title">
+          <span>Fraud Contagion Dynamics — SIR Model (60-Day Horizon)</span>
+          <span style={{color:'var(--subtle)', fontWeight:400}}>Ref: MDPI Math 2021 · doi:10.3390/math9151781</span>
+        </div>
+        <div style={{height: 280}}><canvas ref={canvasRef} /></div>
+      </div>
+      <div className="chart-wrap">
+        <div className="chart-title"><span>R₀ per Payment Channel — Basic Reproduction Number</span><span style={{color:'var(--subtle)',fontWeight:400}}>R₀ &lt; 1 = contained · R₀ &gt; 1 = spreading</span></div>
+        {Object.entries(data.channel_r0).map(([ch, r0]) => (
+          <div className="channel-bar-row" key={ch}>
+            <div className="channel-bar-label">{ch}</div>
+            <div className="channel-bar-track">
+              <div className="channel-bar-fill" style={{ width: `${(r0/Math.max(maxR0,1)*100).toFixed(1)}%`, background: r0 > 1 ? '#EF4444' : '#4F46E5' }} />
+            </div>
+            <div className="channel-bar-val" style={{color: r0 > 1 ? 'var(--red)' : 'var(--ink)'}}>{r0.toFixed(3)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CalibrationTab() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    setLoading(true);
+    api('/api/probability-calibration').then(r => {
+      if (r.status === 'success') setData(r.data);
+      setLoading(false);
+    });
+  }, []);
+
+  useChartJs(canvasRef, () => {
+    if (!data) return {};
+    const perfectLine = data.mean_predicted_value.map(v => v);
+    return {
+      type: 'line',
+      data: {
+        labels: data.mean_predicted_value.map(v => `${(v*100).toFixed(0)}%`),
+        datasets: [
+          { label: 'Perfect calibration', data: perfectLine, borderColor: 'rgba(0,0,0,0.15)', borderWidth: 1.5, borderDash: [6,3], pointRadius: 0, fill: false },
+          { label: 'XGBoost model', data: data.fraction_of_positives, borderColor: '#4F46E5', backgroundColor: 'rgba(79,70,229,0.12)', fill: true, borderWidth: 2.5, pointRadius: 5, pointBackgroundColor: '#4F46E5', tension: 0.3 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 700 },
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 10, family: 'IBM Plex Mono' }, boxWidth: 16 } }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${(ctx.parsed.y*100).toFixed(2)}%` } } },
+        scales: {
+          x: { title: { display: true, text: 'Mean Predicted Probability', font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' } } },
+          y: { title: { display: true, text: 'Fraction of Positives (Observed Fraud Rate)', font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, callback: v => `${(v*100).toFixed(0)}%` } },
+        },
+      },
+    };
+  }, [data]);
+
+  if (loading) return <div className="loading-spinner-lg"><span className="spinner" />Computing calibration…</div>;
+  if (!data) return <div style={{color:'var(--red)', padding:'1rem'}}>Failed to load calibration data.</div>;
+  if (data.error) return <div style={{color:'var(--red)', padding:'1rem'}}>{data.error}</div>;
+
+  return (
+    <div>
+      <div className="stat-grid">
+        {[
+          ['Brier Score', data.brier_score.toFixed(4), 'Lower is better (0=perfect)'],
+          ['ECE', data.ece.toFixed(4), 'Expected calibration error'],
+          ['AUC-ROC', data.model_auc.toFixed(4), 'Discrimination power'],
+          ['Base Fraud Rate', `${data.fraud_base_rate_pct.toFixed(2)}%`, `${data.n_fraud} of ${data.n_samples.toLocaleString()}`],
+        ].map(([lbl, val, sub]) => (
+          <div className="stat-card" key={lbl}>
+            <div className="stat-card-val" style={{fontSize:'1.1rem'}}>{val}</div>
+            <div className="stat-card-lbl">{lbl}</div>
+            <div className="stat-card-sub">{sub}</div>
+          </div>
+        ))}
+      </div>
+      <div className="chart-wrap">
+        <div className="chart-title">
+          <span>Reliability Diagram — Predicted vs. Observed Fraud Probability</span>
+          <span className={`pill ${data.brier_score < 0.02 ? 'pill-ok' : data.brier_score < 0.05 ? 'pill-warn' : 'pill-err'}`}>{data.assessment.split(' — ')[0]}</span>
+        </div>
+        <div style={{height: 280}}><canvas ref={canvasRef} /></div>
+        <div style={{marginTop:'0.5rem', fontSize:'0.65rem', color:'var(--muted)'}}>{data.assessment}</div>
+      </div>
+      <div className="chart-wrap">
+        <div className="chart-title"><span>Per-Channel Probability Calibration</span></div>
+        {Object.entries(data.channel_calibration).map(([ch, cal]) => (
+          <div key={ch} style={{display:'flex', gap:'1rem', padding:'0.5rem 0', borderBottom:'1px solid var(--border)', alignItems:'center'}}>
+            <div style={{width:80, fontSize:'0.68rem', fontWeight:600, color:'var(--ink)'}}>{ch}</div>
+            <div style={{flex:1, fontSize:'0.62rem', color:'var(--muted)'}}>Actual fraud: <span style={{fontFamily:'IBM Plex Mono', color:'var(--ink)'}}>{cal.actual_fraud_rate}%</span></div>
+            <div style={{flex:1, fontSize:'0.62rem', color:'var(--muted)'}}>Model predicts: <span style={{fontFamily:'IBM Plex Mono', color:'var(--ink)'}}>{cal.predicted_fraud_rate}%</span></div>
+            <div style={{flex:1, fontSize:'0.62rem', color:'var(--muted)'}}>Gap: <span className={`pill ${cal.calibration_gap < 0.5 ? 'pill-ok' : cal.calibration_gap < 2 ? 'pill-warn' : 'pill-err'}`}>{cal.calibration_gap}%</span></div>
+            <div style={{width:80, fontSize:'0.6rem', color:'var(--subtle)', textAlign:'right'}}>{cal.n_transactions.toLocaleString()} txns</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PipelineTab() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchPipeline = useCallback(() => {
+    api('/api/live-pipeline?limit=15').then(r => {
+      if (r.status === 'success') setItems(r.data);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    fetchPipeline();
+    const iv = setInterval(fetchPipeline, 4000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const stageClass = s => ({'anchored':'stage-anchored','batched':'stage-batched','hashed':'stage-hashed'}[s] || 'stage-processed');
+  const decisionColor = d => d === 'retry' ? '#4F46E5' : d === 'block' ? '#EF4444' : d === 'escalate' ? '#F59E0B' : '#22C55E';
+
+  if (loading) return <div className="loading-spinner-lg"><span className="spinner" />Fetching pipeline…</div>;
+
+  return (
+    <div>
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem'}}>
+        <div style={{fontSize:'0.68rem', color:'var(--muted)'}}>Live transaction pipeline — updates every 4 seconds</div>
+        <div style={{display:'flex', alignItems:'center', gap:'0.35rem'}}>
+          <span className="pulse-dot" />
+          <span style={{fontSize:'0.62rem', fontFamily:'IBM Plex Mono', color:'var(--muted)'}}>LIVE</span>
+        </div>
+      </div>
+
+      <div style={{display:'flex', gap:'0.5rem', marginBottom:'1rem', padding:'0.6rem 0.85rem', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:3, fontSize:'0.62rem', fontFamily:'IBM Plex Mono', color:'var(--subtle)'}}>
+        PROCESS → SHA-256 HASH → MERKLE BATCH → POLYGON AMOY ANCHOR
+      </div>
+
+      <div className="pipeline-list">
+        {items.length === 0 && <div style={{color:'var(--subtle)', fontSize:'0.75rem', padding:'1rem'}}>No decisions yet. Run the pipeline first.</div>}
+        {items.map((item, idx) => (
+          <div className="pipeline-item" key={item.record_id || idx} style={{animationDelay: `${idx*0.05}s`}}>
+            <div className={`pipeline-stage ${stageClass(item.stage)}`}>{item.stage}</div>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontFamily:'IBM Plex Mono', fontSize:'0.62rem', color:'var(--muted)'}}>{item.record_id_short}…</div>
+              <div style={{fontSize:'0.68rem', fontWeight:600, color:'var(--ink)', marginTop:'0.1rem'}}>{item.record_type}</div>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:'0.65rem', fontWeight:600, color: decisionColor(item.decision)}}>{item.decision || '—'}</div>
+              <div style={{fontSize:'0.6rem', color:'var(--subtle)', marginTop:'0.1rem'}}>{item.policy_check || '—'}</div>
+            </div>
+            <div style={{width:80, textAlign:'right'}}>
+              {item.is_anomaly ? <span className="pill pill-err">ANOMALY</span> : <span className="pill pill-ok">CLEAR</span>}
+            </div>
+            <div style={{width:110, textAlign:'right', fontSize:'0.6rem', fontFamily:'IBM Plex Mono', color:'var(--subtle)'}}>
+              {item.sha256_short ? `sha256:${item.sha256_short}…` : '—'}
+            </div>
+            {item.explorer_url && (
+              <a href={item.explorer_url} target="_blank" rel="noopener" className="pill pill-ok" style={{textDecoration:'none', fontSize:'0.55rem'}}>⛓ Chain</a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsPanel({ onClose }) {
+  const [tab, setTab] = useState('montecarlo');
+  const TABS = [
+    { id: 'montecarlo', label: 'Monte Carlo' },
+    { id: 'sir', label: 'Fraud Diffusion (SIR)' },
+    { id: 'calibration', label: 'Probability Calibration' },
+    { id: 'pipeline', label: 'Live Pipeline' },
+  ];
+  return (
+    <div className="analytics-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="analytics-modal">
+        <div className="analytics-header">
+          <div style={{display:'flex', alignItems:'center', gap:'0.75rem'}}>
+            <div style={{fontFamily:"'Instrument Serif',serif", fontSize:'1.2rem', color:'var(--ink)'}}>Analytics</div>
+            <div style={{fontSize:'0.6rem', letterSpacing:'0.07em', textTransform:'uppercase', color:'var(--muted)', borderLeft:'1px solid var(--border)', paddingLeft:'0.75rem'}}>Risk Intelligence Suite</div>
+          </div>
+          <button className="analytics-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="analytics-tabs">
+          {TABS.map(t => (
+            <button key={t.id} className={`analytics-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
+          ))}
+        </div>
+        <div className="analytics-body">
+          {tab === 'montecarlo'  && <MonteCarloTab />}
+          {tab === 'sir'         && <SIRTab />}
+          {tab === 'calibration' && <CalibrationTab />}
+          {tab === 'pipeline'    && <PipelineTab />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ───────────────────────────────────────────────────────────────────
 function App() {
   const [selectedId, setSelectedId]     = useState(null);
@@ -513,6 +956,7 @@ function App() {
   const [loading, setLoading]           = useState(false);
   const [auditRecord, setAuditRecord]   = useState(null);
   const [stats, setStats]               = useState(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const msgsEndRef = useRef(null);
 
   const selectedEvent = EVENTS.find(e => e.id === selectedId);
@@ -651,6 +1095,7 @@ function App() {
 
   return (
     <div className="shell">
+      {showAnalytics && <AnalyticsPanel onClose={() => setShowAnalytics(false)} />}
       {/* ── Header ── */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -661,7 +1106,13 @@ function App() {
             AI Payment Intelligence
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            <button
+              onClick={() => setShowAnalytics(true)}
+              style={{ background:'var(--accent)', color:'#fff', border:'none', borderRadius:'3px', padding:'0.3rem 0.7rem', fontSize:'0.68rem', fontWeight:600, cursor:'pointer', fontFamily:'IBM Plex Mono', letterSpacing:'0.04em', display:'flex', alignItems:'center', gap:'0.3rem' }}
+            >
+              ⬡ Analytics
+            </button>
           {stats && (
             <>
               {[
@@ -716,6 +1167,17 @@ function App() {
               );
             })}
             
+            <div className="event-section-label" style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.8rem' }}>Risk Intelligence</div>
+            
+            <div className="event-item" onClick={() => setShowAnalytics(true)} style={{ cursor: 'pointer' }}>
+              <div className="event-dot" style={{background:'var(--accent2)', boxShadow:`0 0 0 2px var(--accent-bg)`}} />
+              <div className="event-body">
+                <div className="event-title">Open Analytics Suite</div>
+                <div className="event-meta">Monte Carlo · SIR · Calibration</div>
+                <div className="event-time">Live pipeline view</div>
+              </div>
+            </div>
+
             <div className="event-section-label" style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.8rem' }}>Demo Controls (Phase 12)</div>
             
             <div className={`event-item`} onClick={runTamperDemo} style={{ opacity: loading ? 0.5 : 1 }}>

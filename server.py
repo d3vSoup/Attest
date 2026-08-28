@@ -97,6 +97,8 @@ app.add_middleware(
 frontend_dir = Path(__file__).parent / "frontend"
 frontend_dir.mkdir(exist_ok=True)
 
+ROOT = Path(__file__).parent  # project root — used by analytics engines
+
 EXPLORER_BASE = "https://amoy.polygonscan.com/tx/"
 
 
@@ -1091,7 +1093,96 @@ Formal prose only. No bullets. No emojis."""
     return {"status": "success", "summary": answer, "source": "groq-llama3.3-70b"}
 
 
+# ── Analytics Engines ──────────────────────────────────────────────────────────
+@app.get("/api/monte-carlo")
+async def monte_carlo_endpoint(n_simulations: int = 2000, n_days: int = 30):
+    """
+    Run Monte Carlo settlement risk simulation using Geometric Brownian Motion.
+    Returns P5/P50/P95 confidence bands, VaR, sample paths, and volatility series.
+    """
+    try:
+        sys.path.insert(0, str(ROOT))
+        from ml.monte_carlo import run_monte_carlo
+        result = run_monte_carlo(n_simulations=n_simulations, n_days_forward=n_days)
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fraud-sir")
+async def fraud_sir_endpoint():
+    """
+    Run SIR (Susceptible-Infected-Recovered) fraud information diffusion model.
+    Returns S/I/R curves over 60 days, R₀ per payment channel, and peak infection stats.
+    """
+    try:
+        sys.path.insert(0, str(ROOT))
+        from ml.sir_model import run_sir_simulation
+        result = run_sir_simulation()
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/probability-calibration")
+async def calibration_endpoint():
+    """
+    Compute XGBoost model probability calibration (reliability diagram).
+    Returns calibration curve, Brier score, ECE, AUC, and per-channel analysis.
+    """
+    try:
+        sys.path.insert(0, str(ROOT))
+        from ml.calibration import run_calibration
+        result = run_calibration()
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/live-pipeline")
+async def live_pipeline_endpoint(limit: int = 12):
+    """
+    Returns the most recent N decisions with pipeline stage metadata.
+    Used by the live mempool view in the frontend.
+    """
+    init_db()
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT d.record_id, d.record_type, d.decision, d.confidence,
+               d.policy_check, d.is_anomaly, d.sha256_hex, d.batch_id,
+               d.created_at, b.merkle_root, a.tx_hash
+        FROM decisions d
+        LEFT JOIN batches b ON d.batch_id = b.id
+        LEFT JOIN anchors a ON b.id = a.batch_id
+        WHERE d.record_type != 'policy_anchor'
+        ORDER BY d.id DESC LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+
+    pipeline_items = []
+    for r in rows:
+        item = dict(r)
+        # Determine pipeline stage
+        if item.get("tx_hash"):
+            stage = "anchored"
+        elif item.get("merkle_root"):
+            stage = "batched"
+        elif item.get("sha256_hex"):
+            stage = "hashed"
+        else:
+            stage = "processed"
+        item["stage"] = stage
+        item["explorer_url"] = (EXPLORER_BASE + item["tx_hash"]) if item.get("tx_hash") else None
+        # Truncate for display
+        item["record_id_short"] = item["record_id"][:8] if item.get("record_id") else "—"
+        item["sha256_short"] = item["sha256_hex"][:12] if item.get("sha256_hex") else "—"
+        pipeline_items.append(item)
+
+    return {"status": "success", "data": pipeline_items}
+
+
 # ── Demo Controls ──────────────────────────────────────────────────────────────
+
 class TamperRequest(BaseModel):
     n: int = 5
 
