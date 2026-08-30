@@ -191,13 +191,14 @@ class AgentRequest(BaseModel):
 # ── UNIFIED AGENT ─────────────────────────────────────────────────────────────────
 
 AGENT_SYSTEM = (
-    "You are Attest, an AI commerce intelligence assistant for merchants on Razorpay. "
-    "You help with three things: (1) recovering failed payments conversationally, "
-    "(2) protecting the merchant from fraud and chargebacks, "
-    "(3) answering financial questions using their actual data. "
-    "Be concise (max 3-4 sentences), professional, and specific. Use \u20b9 for amounts. "
-    "Never mention XGBoost, Isolation Forest, SHAP, Merkle trees, or any technical internals. "
-    "Never say \"I am an AI\". Act like a sharp, reliable business assistant."
+    "You are Attest, an AI payment intelligence assistant for merchants on Razorpay. "
+    "You have access to the merchant's REAL transaction data, including specific escalated, blocked, and anomaly-flagged records with record IDs, customer names, amounts, and decisions. "
+    "When asked about specific cases, cite the actual record IDs and customer details from the context provided — NEVER say you lack access to specific transactions. "
+    "Help with: (1) recovering failed payments, (2) protecting against fraud and chargebacks, "
+    "(3) answering financial questions using actual data. "
+    "Be concise (max 4-5 sentences), professional, and specific. Use ₹ for amounts. "
+    "Never mention XGBoost, Isolation Forest, SHAP, Merkle trees, or any ML internals. "
+    "Never say 'I am an AI' or 'I don't have access to'. Act like a sharp, reliable business assistant who knows the merchant's data."
 )
 
 CAUSE_MAP = {
@@ -216,7 +217,7 @@ ACTION_MAP = {
 
 
 async def _get_finance_context(limit: int = 30) -> str:
-    """Pull a summary from the DB for grounding finance answers."""
+    """Pull a summary + specific records from the DB for grounded answers."""
     try:
         init_db()
         conn = get_connection()
@@ -235,7 +236,22 @@ async def _get_finance_context(limit: int = 30) -> str:
         amt_rows = conn.execute(
             "SELECT canonical_json FROM decisions WHERE record_type!='policy_anchor' LIMIT ?", (limit,)
         ).fetchall()
+
+        # Pull specific records so agent can cite them directly
+        escalated_rows = conn.execute(
+            "SELECT record_id, decision, confidence, is_anomaly, policy_check, sha256_hex, canonical_json "
+            "FROM decisions WHERE decision='escalate' AND record_type!='policy_anchor' ORDER BY id DESC LIMIT 10"
+        ).fetchall()
+        blocked_rows = conn.execute(
+            "SELECT record_id, decision, confidence, is_anomaly, sha256_hex, canonical_json "
+            "FROM decisions WHERE decision='block' AND record_type!='policy_anchor' ORDER BY id DESC LIMIT 5"
+        ).fetchall()
+        anomaly_rows = conn.execute(
+            "SELECT record_id, decision, confidence, sha256_hex, canonical_json "
+            "FROM decisions WHERE is_anomaly=1 AND record_type!='policy_anchor' ORDER BY id DESC LIMIT 10"
+        ).fetchall()
         conn.close()
+
         total_amt = 0.0
         for r in amt_rows:
             try:
@@ -243,15 +259,53 @@ async def _get_finance_context(limit: int = 30) -> str:
                 total_amt += float(ctx.get("amount", 0) or 0)
             except Exception:
                 pass
+
+        def _fmt_records(rows, cols):
+            out = []
+            for row in rows:
+                rd = dict(zip(cols, row))
+                cj = {}
+                try:
+                    cj = json.loads(rd.get("canonical_json") or "{}")
+                except Exception:
+                    pass
+                ctx = cj.get("input_context", {})
+                name = ctx.get("customer_name", "unknown")
+                amt  = ctx.get("amount", 0)
+                chan = ctx.get("channel", "")
+                out.append(
+                    f"  - record_id={rd.get('record_id','?')[:16]}... | decision={rd.get('decision')} "
+                    f"| confidence={float(rd.get('confidence',0)):.2f} "
+                    f"| anomaly={'YES' if rd.get('is_anomaly') else 'NO'} "
+                    f"| customer={name} | amount=\u20b9{amt:,.0f} | channel={chan}"
+                )
+            return "\n".join(out) if out else "  (none)"
+
+        escalated_detail = _fmt_records(
+            escalated_rows,
+            ["record_id", "decision", "confidence", "is_anomaly", "policy_check", "sha256_hex", "canonical_json"]
+        )
+        blocked_detail = _fmt_records(
+            blocked_rows,
+            ["record_id", "decision", "confidence", "is_anomaly", "sha256_hex", "canonical_json"]
+        )
+        anomaly_detail = _fmt_records(
+            anomaly_rows,
+            ["record_id", "decision", "confidence", "sha256_hex", "canonical_json"]
+        )
+
         recovered = breakdown.get("retry", 0) + breakdown.get("discount", 0)
         return (
-            f"Merchant data: {total} total payment decisions, "
-            f"recovery actions taken: {recovered}, "
-            f"estimated transaction volume: \u20b9{total_amt:,.0f}, "
-            f"anomalies flagged: {anomalies}, "
-            f"batches anchored on blockchain: {anchored}, "
-            f"decision breakdown: {json.dumps(breakdown)}. "
-            f"Average ticket size: \u20b9{total_amt/max(len(amt_rows),1):,.0f}."
+            f"MERCHANT SUMMARY: {total} total payment decisions | "
+            f"recovery actions: {recovered} | "
+            f"volume: \u20b9{total_amt:,.0f} | "
+            f"anomalies: {anomalies} | "
+            f"blockchain-anchored batches: {anchored} | "
+            f"decision breakdown: {json.dumps(breakdown)} | "
+            f"avg ticket: \u20b9{total_amt/max(len(amt_rows),1):,.0f}.\n"
+            f"ESCALATED RECORDS (most recent 10):\n{escalated_detail}\n"
+            f"BLOCKED RECORDS (most recent 5):\n{blocked_detail}\n"
+            f"ANOMALY-FLAGGED RECORDS (most recent 10):\n{anomaly_detail}"
         )
     except Exception as e:
         return f"Limited data available: {e}"
@@ -1191,13 +1245,13 @@ async def demo_tamper(req: TamperRequest):
     """Silently corrupt N records to trigger HASH_MISMATCH."""
     import sys
     import subprocess
-    ROOT = Path(__file__).parent.parent
+    ROOT = Path(__file__).parent  # server.py lives inside attest/, demo/ is also inside attest/
     result = subprocess.run(
         [sys.executable, "demo/tamper_test.py", "--n", str(req.n)],
         cwd=ROOT, capture_output=True, text=True
     )
     if result.returncode != 0:
-        raise HTTPException(status_code=500, detail=result.stderr)
+        raise HTTPException(status_code=500, detail=result.stderr or result.stdout)
     return {"status": "success", "message": f"Silently corrupted {req.n} records"}
 
 @app.post("/api/demo/reset")
@@ -1205,22 +1259,76 @@ async def demo_reset():
     """Wipe DB and reload Kaggle data + retrain models."""
     import sys
     import subprocess
-    ROOT = Path(__file__).parent.parent
-    # We run the reset script
+    ROOT = Path(__file__).parent  # server.py lives inside attest/, demo/ is also inside attest/
     result = subprocess.run(
         [sys.executable, "demo/tamper_test.py", "--reset", "--limit", "150"],
         cwd=ROOT, capture_output=True, text=True
     )
     if result.returncode != 0:
-        raise HTTPException(status_code=500, detail=result.stderr)
+        raise HTTPException(status_code=500, detail=result.stderr or result.stdout)
     return {"status": "success", "message": "Database reset and Kaggle data reloaded."}
+
+@app.get("/api/demo/verify-results")
+async def demo_verify_results():
+    """Re-run SHA-256 verification on all records and return per-record status for the UI."""
+    init_db()
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT record_id, sha256_hex, canonical_json FROM decisions WHERE record_type != 'policy_anchor' ORDER BY id"
+    ).fetchall()
+    conn.close()
+
+    records = []
+    verified_count = 0
+    failed_count = 0
+
+    for row in rows:
+        record_id = row["record_id"]
+        stored_hash = row["sha256_hex"] or ""
+        try:
+            canonical = json.loads(row["canonical_json"] or "{}")
+            recomputed = hashlib.sha256(
+                json.dumps(canonical, sort_keys=True, separators=(',', ':')).encode()
+            ).hexdigest()
+            if stored_hash and recomputed == stored_hash:
+                status = "VERIFIED"
+                verified_count += 1
+            elif not stored_hash:
+                status = "NO_HASH"
+                verified_count += 1  # not a fail case
+            else:
+                status = "HASH_MISMATCH"
+                failed_count += 1
+        except Exception:
+            status = "ERROR"
+            failed_count += 1
+
+        records.append({"record_id": record_id, "status": status})
+
+    return {
+        "status": "success",
+        "total": len(records),
+        "verified": verified_count,
+        "failed": failed_count,
+        "records": records,
+    }
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
 @app.get("/")
-async def serve_index():
+async def serve_home():
+    """Serve the homepage landing page."""
+    p = frontend_dir / "home.html"
+    if p.exists():
+        return FileResponse(p)
+    # Fallback to dashboard if no homepage
     p = frontend_dir / "index.html"
     return FileResponse(p) if p.exists() else {"message": "Frontend not found."}
 
+@app.get("/app")
+async def serve_app():
+    """Serve the main Attest dashboard."""
+    p = frontend_dir / "index.html"
+    return FileResponse(p) if p.exists() else {"message": "Frontend not found."}
 
 app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
 

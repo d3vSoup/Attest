@@ -588,10 +588,177 @@ function useChartJs(canvasRef, buildConfig, deps) {
   }, deps);
 }
 
+function MonteCarloFanChart({ data }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !data) return;
+    const canvas = canvasRef.current;
+    const W = canvas.offsetWidth || 800;
+    const H = canvas.offsetHeight || 300;
+    canvas.width = W * window.devicePixelRatio;
+    canvas.height = H * window.devicePixelRatio;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+    const PAD = { top: 18, right: 20, bottom: 36, left: 62 };
+    const cW = W - PAD.left - PAD.right;
+    const cH = H - PAD.top - PAD.bottom;
+
+    // Compute y-range from all paths + bands
+    const allVals = [
+      ...data.p05, ...data.p95,
+      ...(data.sample_paths || []).flat(),
+    ].filter(Number.isFinite);
+    const yMin = Math.min(...allVals) * 0.88;
+    const yMax = Math.max(...allVals) * 1.05;
+
+    const xScale = i => PAD.left + (i / (data.days.length - 1)) * cW;
+    const yScale = v => PAD.top + cH - ((v - yMin) / (yMax - yMin)) * cH;
+
+    // Clear
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = '#FAFAF9';
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle grid lines
+    ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+    ctx.lineWidth = 1;
+    const gridLines = 5;
+    for (let i = 0; i <= gridLines; i++) {
+      const y = PAD.top + (cH / gridLines) * i;
+      ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
+    }
+
+    // P5–P95 shaded fill band
+    ctx.beginPath();
+    data.p95.forEach((v, i) => {
+      const x = xScale(i), y = yScale(v);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    for (let i = data.p05.length - 1; i >= 0; i--) {
+      ctx.lineTo(xScale(i), yScale(data.p05[i]));
+    }
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
+    grad.addColorStop(0, 'rgba(79,70,229,0.13)');
+    grad.addColorStop(1, 'rgba(239,68,68,0.07)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Draw sample paths — vivid spectral rainbow
+    const paths = data.sample_paths || [];
+    const PALETTE = [
+      '#6366F1','#8B5CF6','#A855F7','#EC4899','#EF4444',
+      '#F97316','#F59E0B','#EAB308','#22C55E','#10B981',
+      '#14B8A6','#06B6D4','#3B82F6','#60A5FA','#818CF8',
+      '#C084FC','#E879F9','#FB7185','#FCA5A5','#FDBA74',
+      '#FCD34D','#A3E635','#34D399','#2DD4BF','#38BDF8',
+    ];
+    paths.forEach((path, idx) => {
+      const color = PALETTE[idx % PALETTE.length];
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.2;
+      ctx.globalAlpha = 0.52;
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      path.forEach((v, i) => {
+        const x = xScale(i), y = yScale(v);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // P95 line (green dashed)
+    ctx.save();
+    ctx.strokeStyle = '#22C55E'; ctx.lineWidth = 2.5; ctx.setLineDash([6,3]);
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    data.p95.forEach((v, i) => {
+      const x = xScale(i), y = yScale(v);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke(); ctx.restore();
+
+    // P50 line (indigo solid bold)
+    ctx.save();
+    ctx.strokeStyle = '#4F46E5'; ctx.lineWidth = 3; ctx.setLineDash([]);
+    ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(79,70,229,0.4)';
+    ctx.beginPath();
+    data.p50.forEach((v, i) => {
+      const x = xScale(i), y = yScale(v);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke(); ctx.restore();
+
+    // P05 line (red dashed)
+    ctx.save();
+    ctx.strokeStyle = '#EF4444'; ctx.lineWidth = 2.5; ctx.setLineDash([6,3]);
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    data.p05.forEach((v, i) => {
+      const x = xScale(i), y = yScale(v);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke(); ctx.restore();
+
+    // X axis labels (Day 1, 5, 10, 15, 20, 25, 30)
+    ctx.fillStyle = '#9E9E9A'; ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'center';
+    [0, 4, 9, 14, 19, 24, 29].forEach(i => {
+      if (i < data.days.length) {
+        ctx.fillText(`Day ${data.days[i]}`, xScale(i), H - PAD.bottom + 14);
+      }
+    });
+
+    // Y axis labels
+    ctx.textAlign = 'right'; ctx.font = '9px IBM Plex Mono'; ctx.fillStyle = '#9E9E9A';
+    for (let i = 0; i <= gridLines; i++) {
+      const v = yMin + ((yMax - yMin) / gridLines) * (gridLines - i);
+      ctx.fillText(`₹${(v/1e6).toFixed(1)}M`, PAD.left - 6, PAD.top + (cH / gridLines) * i + 3);
+    }
+
+    // Legend
+    const legend = [
+      { color: '#22C55E', label: 'P95 (Best case)', dash: true },
+      { color: '#4F46E5', label: 'P50 (Median)', dash: false },
+      { color: '#EF4444', label: 'P05 (Worst case)', dash: true },
+    ];
+    let lx = PAD.left;
+    const ly = H - 9;
+    ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'left';
+    legend.forEach(({ color, label, dash }) => {
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
+      if (dash) ctx.setLineDash([4,2]); else ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(lx, ly - 3); ctx.lineTo(lx + 22, ly - 3); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#6E6E6A';
+      ctx.fillText(label, lx + 26, ly);
+      lx += 26 + ctx.measureText(label).width + 18;
+    });
+
+    // Sample paths legend entry
+    ctx.save();
+    const grad2 = ctx.createLinearGradient(lx, 0, lx + 22, 0);
+    grad2.addColorStop(0, '#6366F1'); grad2.addColorStop(0.5, '#F97316'); grad2.addColorStop(1, '#22C55E');
+    ctx.strokeStyle = grad2; ctx.lineWidth = 2; ctx.globalAlpha = 0.7; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(lx, ly - 3); ctx.lineTo(lx + 22, ly - 3); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#6E6E6A'; ctx.globalAlpha = 1;
+    ctx.fillText(`${paths.length} simulation paths`, lx + 26, ly);
+
+  }, [data]);
+
+  return <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
 function MonteCarloTab() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const canvasRef = useRef(null);
   const volRef = useRef(null);
 
   useEffect(() => {
@@ -602,68 +769,52 @@ function MonteCarloTab() {
     });
   }, []);
 
-  useChartJs(canvasRef, () => {
-    if (!data) return {};
-    const labels = data.days.map(d => `Day ${d}`);
-    const sampleDatasets = (data.sample_paths || []).slice(0, 8).map((path, i) => ({
-      data: path,
-      borderColor: `rgba(79,70,229,${0.06 + i * 0.02})`,
-      borderWidth: 1, pointRadius: 0, fill: false, tension: 0.3,
-    }));
-    return {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          ...sampleDatasets,
-          { label: 'P95 (Best)', data: data.p95, borderColor: '#22C55E', borderWidth: 2, borderDash: [4,2], pointRadius: 0, fill: '+1', backgroundColor: 'rgba(34,197,94,0.06)', tension: 0.4 },
-          { label: 'P50 (Median)', data: data.p50, borderColor: '#4F46E5', borderWidth: 2.5, pointRadius: 0, fill: false, tension: 0.4 },
-          { label: 'P05 (Worst)', data: data.p05, borderColor: '#EF4444', borderWidth: 2, borderDash: [4,2], pointRadius: 0, fill: false, tension: 0.4 },
-        ],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: { duration: 800 },
-        plugins: { legend: { display: true, position: 'bottom', labels: { font: { size: 10, family: 'IBM Plex Mono' }, boxWidth: 16, padding: 12 } }, tooltip: { callbacks: { label: ctx => `₹${ctx.parsed.y.toLocaleString('en-IN', {maximumFractionDigits:0})}` } } },
-        scales: {
-          x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, maxTicksLimit: 8 } },
-          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, callback: v => `₹${(v/1e6).toFixed(1)}M` } },
-        },
-      },
-    };
-  }, [data]);
-
   useChartJs(volRef, () => {
     if (!data) return {};
+    const volData = data.volatility_series;
     return {
       type: 'bar',
       data: {
-        labels: Array.from({length: data.volatility_series.length}, (_,i) => `D${i+1}`),
-        datasets: [{ label: 'Annualised Volatility %', data: data.volatility_series, backgroundColor: 'rgba(79,70,229,0.55)', borderRadius: 2 }],
+        labels: Array.from({length: volData.length}, (_, i) => `D${i + 1}`),
+        datasets: [{
+          label: 'Annualised Volatility %',
+          data: volData,
+          backgroundColor: volData.map(v =>
+            v > 250 ? 'rgba(239,68,68,0.75)' :
+            v > 180 ? 'rgba(249,115,22,0.7)' :
+            'rgba(79,70,229,0.6)'
+          ),
+          borderRadius: 2,
+        }],
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toFixed(0)}% p.a.` } },
+        },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 8, family: 'IBM Plex Mono' }, maxTicksLimit: 10 } },
-          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, callback: v => `${v.toFixed(0)}%` } },
+          x: { grid: { display: false }, ticks: { font: { size: 8, family: 'IBM Plex Mono' }, maxTicksLimit: 12, color: '#9E9E9A' } },
+          y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, callback: v => `${v.toFixed(0)}%`, color: '#9E9E9A' } },
         },
       },
     };
   }, [data]);
 
-  if (loading) return <div className="loading-spinner-lg"><span className="spinner" />Loading simulation…</div>;
+  if (loading) return <div className="loading-spinner-lg"><span className="spinner" />Running 1,000 GBM simulations…</div>;
   if (!data) return <div style={{color:'var(--red)', padding:'1rem'}}>Failed to load Monte Carlo data.</div>;
 
-  const fmt_inr = v => `₹${(v/1e6).toFixed(2)}M`;
+  const fmt_inr = v => `₹${(v / 1e6).toFixed(2)}M`;
+  const drift_sign = data.mu_annual_pct > 0 ? '+' : '';
 
   return (
     <div>
       <div className="stat-grid">
         {[
-          ['Daily Average', fmt_inr(data.current_daily_avg), 'Current baseline'],
-          ['VaR (P05)', fmt_inr(data.var_95), '95% worst-case/day'],
-          ['30d Expected', fmt_inr(data.expected_30d_total), 'Median scenario'],
-          ['σ (Volatility)', `${data.sigma_annual_pct.toFixed(0)}%/yr`, `μ drift: ${data.mu_annual_pct > 0 ? '+' : ''}${data.mu_annual_pct.toFixed(1)}%`],
+          ['Daily Avg Settlement', fmt_inr(data.current_daily_avg), 'Current run-rate baseline'],
+          ['Settlement at Risk (P05)', fmt_inr(data.var_95), '95% worst-case single day'],
+          ['30-Day Expected Total', fmt_inr(data.expected_30d_total), 'Median of 1,000 paths'],
+          ['Annualised Volatility σ', `${data.sigma_annual_pct.toFixed(0)}%`, `Drift μ = ${drift_sign}${data.mu_annual_pct.toFixed(1)}%/yr`],
         ].map(([lbl, val, sub]) => (
           <div className="stat-card" key={lbl}>
             <div className="stat-card-val">{val}</div>
@@ -672,27 +823,45 @@ function MonteCarloTab() {
           </div>
         ))}
       </div>
-      <div className="chart-wrap">
+
+      <div className="chart-wrap" style={{padding:'1rem 1rem 0.5rem'}}>
         <div className="chart-title">
-          <span>30-Day Settlement Fan Chart — {data.n_simulations.toLocaleString()} simulations (GBM)</span>
-          <span style={{color:'var(--subtle)', fontWeight:400}}>P5 / P50 / P95 confidence bands</span>
+          <span>30-Day Settlement Monte Carlo — {data.n_simulations.toLocaleString()} GBM Paths</span>
+          <div style={{display:'flex', gap:'0.5rem', alignItems:'center'}}>
+            <span style={{display:'inline-block', width:12, height:2, background:'#22C55E', borderRadius:1}} />
+            <span style={{fontSize:'0.58rem', color:'var(--subtle)'}}>P95</span>
+            <span style={{display:'inline-block', width:12, height:3, background:'#4F46E5', borderRadius:1}} />
+            <span style={{fontSize:'0.58rem', color:'var(--subtle)'}}>Median</span>
+            <span style={{display:'inline-block', width:12, height:2, background:'#EF4444', borderRadius:1}} />
+            <span style={{fontSize:'0.58rem', color:'var(--subtle)'}}>P05 (VaR)</span>
+          </div>
         </div>
-        <div style={{height: 280}}><canvas ref={canvasRef} /></div>
+        <div style={{height: 310, position:'relative'}}>
+          <MonteCarloFanChart data={data} />
+        </div>
       </div>
-      <div className="chart-wrap">
-        <div className="chart-title"><span>Rolling Settlement Volatility (Historical 60-Day Window, Annualised)</span></div>
-        <div style={{height: 150}}><canvas ref={volRef} /></div>
+
+      <div className="chart-wrap" style={{marginTop:'0.85rem'}}>
+        <div className="chart-title">
+          <span>Settlement Volatility Tracker — Rolling 60-Day Window, Annualised</span>
+          <span style={{fontSize:'0.58rem', color:'var(--subtle)', fontWeight:400}}>
+            🟠 &gt;180%  🔴 &gt;250% (elevated risk)
+          </span>
+        </div>
+        <div style={{height: 140}}><canvas ref={volRef} /></div>
       </div>
     </div>
   );
 }
 
-function SIRTab() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const canvasRef = useRef(null);
 
-  useEffect(() => {
+function SIRTab() {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const sirCanvasRef = React.useRef(null);
+  const velCanvasRef = React.useRef(null);
+
+  React.useEffect(() => {
     setLoading(true);
     api('/api/fraud-sir').then(r => {
       if (r.status === 'success') setData(r.data);
@@ -700,29 +869,173 @@ function SIRTab() {
     });
   }, []);
 
-  useChartJs(canvasRef, () => {
-    if (!data) return {};
+  // Main SIR chart with phase annotations
+  React.useEffect(() => {
+    const canvas = sirCanvasRef.current;
+    if (!canvas || !data) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
     const agg = data.aggregate;
-    const labels = data.steps.map(s => `Day ${s}`);
-    return {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          { label: 'Susceptible (S)', data: agg.S, borderColor: '#3730A3', backgroundColor: 'rgba(55,48,163,0.08)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.4 },
-          { label: 'Infected (I) — Active Fraud', data: agg.I, borderColor: '#EF4444', backgroundColor: 'rgba(239,68,68,0.10)', fill: true, borderWidth: 2.5, pointRadius: 0, tension: 0.4 },
-          { label: 'Recovered (R) — Blocked/Resolved', data: agg.R, borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.4 },
-        ],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: { duration: 800 },
-        plugins: { legend: { position: 'bottom', labels: { font: { size: 10, family: 'IBM Plex Mono' }, boxWidth: 16 } }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}` } } },
-        scales: {
-          x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' }, maxTicksLimit: 10 } },
-          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 9, family: 'IBM Plex Mono' } } },
-        },
-      },
+    const steps = data.steps;
+    const pad = { top: 32, right: 24, bottom: 52, left: 56 };
+    const cw = W - pad.left - pad.right;
+    const ch = H - pad.top - pad.bottom;
+
+    const allVals = [...agg.S, ...agg.I, ...agg.R];
+    const maxY = Math.max(...allVals) * 1.08;
+    const minY = 0;
+
+    const xScale = i => pad.left + (i / (steps.length - 1)) * cw;
+    const yScale = v => pad.top + ch - ((v - minY) / (maxY - minY)) * ch;
+
+    // Background grid
+    ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+      const y = pad.top + (i / 5) * ch;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+    }
+    for (let i = 0; i <= 6; i++) {
+      const x = pad.left + (i / 6) * cw;
+      ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch); ctx.stroke();
+    }
+
+    // Phase annotations
+    const peakDay = data.peak_day || 10;
+    const peakX = xScale(Math.min(peakDay, steps.length-1));
+    const phases = [
+      { label: 'Endemic', x1: 0, x2: peakX * 0.4, color: 'rgba(239,68,68,0.04)' },
+      { label: 'Containment', x1: peakX * 0.4, x2: peakX, color: 'rgba(249,115,22,0.04)' },
+      { label: 'Eradication', x1: peakX, x2: cw + pad.left, color: 'rgba(34,197,94,0.04)' },
+    ];
+    phases.forEach(ph => {
+      ctx.fillStyle = ph.color;
+      ctx.fillRect(ph.x1, pad.top, ph.x2 - ph.x1, ch);
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.font = `600 9px 'IBM Plex Mono',monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(ph.label.toUpperCase(), (ph.x1 + ph.x2) / 2, pad.top + 14);
+    });
+
+    // Draw filled areas
+    const drawArea = (values, color, alpha) => {
+      ctx.beginPath();
+      ctx.moveTo(xScale(0), yScale(0));
+      values.forEach((v, i) => ctx.lineTo(xScale(i), yScale(v)));
+      ctx.lineTo(xScale(values.length - 1), yScale(0));
+      ctx.closePath();
+      ctx.fillStyle = color.replace(')', `,${alpha})`).replace('rgb', 'rgba');
+      ctx.fill();
     };
+
+    drawArea(agg.S, 'rgb(55,48,163)', 0.07);
+    drawArea(agg.R, 'rgb(34,197,94)', 0.08);
+    drawArea(agg.I, 'rgb(239,68,68)', 0.12);
+
+    // Draw lines
+    const drawLine = (values, color, width, dash=[]) => {
+      ctx.beginPath();
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.setLineDash(dash);
+      values.forEach((v, i) => i === 0 ? ctx.moveTo(xScale(i), yScale(v)) : ctx.lineTo(xScale(i), yScale(v)));
+      ctx.stroke(); ctx.setLineDash([]);
+    };
+    drawLine(agg.S, '#3730A3', 2);
+    drawLine(agg.R, '#16A34A', 2);
+    drawLine(agg.I, '#EF4444', 2.5);
+
+    // Peak infection marker
+    const peakVal = data.peak_infected;
+    const pxi = steps.indexOf(peakDay) >= 0 ? steps.indexOf(peakDay) : Math.round((peakDay / steps[steps.length-1]) * (steps.length-1));
+    ctx.strokeStyle = '#EF4444';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(xScale(pxi), pad.top); ctx.lineTo(xScale(pxi), pad.top + ch); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#EF4444';
+    ctx.font = `700 9px 'IBM Plex Mono',monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText(`Peak Day ${peakDay}`, xScale(pxi) + 4, pad.top + 22);
+
+    // Y-axis labels
+    ctx.fillStyle = '#9E9E9A';
+    ctx.font = `9px 'IBM Plex Mono',monospace`;
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+      const v = minY + (i / 4) * maxY;
+      ctx.fillText(v > 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0), pad.left - 6, yScale(v) + 3);
+    }
+    // X-axis labels
+    ctx.textAlign = 'center';
+    [0, 15, 30, 45, 60].forEach(d => {
+      const idx = steps.indexOf(d) >= 0 ? steps.indexOf(d) : Math.round((d / steps[steps.length-1]) * (steps.length-1));
+      ctx.fillText(`Day ${d}`, xScale(idx), pad.top + ch + 16);
+    });
+
+    // Legend
+    const legend = [['S','#3730A3'],['I (Active Fraud)','#EF4444'],['R (Resolved)','#16A34A']];
+    legend.forEach(([lbl,c], i) => {
+      const lx = pad.left + i * (cw/3);
+      ctx.fillStyle = c;
+      ctx.fillRect(lx, pad.top + ch + 28, 12, 3);
+      ctx.fillStyle = '#6E6E6A';
+      ctx.font = `9px 'IBM Plex Mono',monospace`;
+      ctx.textAlign = 'left';
+      ctx.fillText(lbl, lx + 16, pad.top + ch + 31);
+    });
+  }, [data]);
+
+  // Epidemic velocity chart (daily new infections)
+  React.useEffect(() => {
+    const canvas = velCanvasRef.current;
+    if (!canvas || !data) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const infected = data.aggregate.I;
+    const delta = infected.map((v, i) => i === 0 ? 0 : Math.max(0, v - infected[i-1]));
+    const maxD = Math.max(...delta) * 1.1 || 1;
+    const pad = { top: 16, right: 16, bottom: 30, left: 48 };
+    const cw = W - pad.left - pad.right;
+    const ch = H - pad.top - pad.bottom;
+    const bw = cw / delta.length;
+
+    // Grid
+    ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 1;
+    [0.25,0.5,0.75,1].forEach(r => {
+      const y = pad.top + ch - r * ch;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+    });
+
+    // Bars
+    delta.forEach((v, i) => {
+      const h = (v / maxD) * ch;
+      const ratio = v / maxD;
+      ctx.fillStyle = ratio > 0.7 ? '#EF4444' : ratio > 0.4 ? '#F97316' : '#6366F1';
+      ctx.fillRect(pad.left + i * bw + 1, pad.top + ch - h, bw - 2, h);
+    });
+
+    // Labels
+    ctx.fillStyle = '#9E9E9A';
+    ctx.font = `9px 'IBM Plex Mono',monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText(maxD.toFixed(0), pad.left - 4, pad.top + 10);
+    ctx.fillText('0', pad.left - 4, pad.top + ch);
+    ctx.textAlign = 'center';
+    [0, 30, 59].forEach(i => {
+      ctx.fillText(`D${data.steps[i] || i}`, pad.left + i * bw + bw/2, pad.top + ch + 14);
+    });
+    ctx.fillStyle = '#6E6E6A';
+    ctx.font = `700 9px 'IBM Plex Mono',monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText('Daily New Fraud Events', pad.left, pad.top - 2);
   }, [data]);
 
   if (loading) return <div className="loading-spinner-lg"><span className="spinner" />Running SIR simulation…</div>;
@@ -735,9 +1048,9 @@ function SIRTab() {
       <div className="stat-grid">
         {[
           ['Overall R₀', data.overall_r0.toFixed(3), data.overall_r0 < 1 ? '🟢 Fraud contained' : '🔴 Spreading'],
-          ['Peak Infected', data.peak_infected.toLocaleString(), `Day ${data.peak_day}`],
+          ['Peak Infected', data.peak_infected.toLocaleString(), `Peaks Day ${data.peak_day}`],
           ['Total Population', data.total_population.toLocaleString(), 'Across all channels'],
-          ['Containment Rate', `${(data.containment_ratio*100).toFixed(1)}%`, 'Blocked by day 60'],
+          ['Containment Rate', `${(data.containment_ratio*100).toFixed(1)}%`, 'Eradicated by Day 60'],
         ].map(([lbl, val, sub]) => (
           <div className="stat-card" key={lbl}>
             <div className="stat-card-val" style={{fontSize:'1.1rem'}}>{val}</div>
@@ -746,28 +1059,51 @@ function SIRTab() {
           </div>
         ))}
       </div>
-      <div className="chart-wrap">
+
+      <div className="chart-wrap" style={{padding:'1rem 1rem 0.5rem'}}>
         <div className="chart-title">
-          <span>Fraud Contagion Dynamics — SIR Model (60-Day Horizon)</span>
-          <span style={{color:'var(--subtle)', fontWeight:400}}>Ref: MDPI Math 2021 · doi:10.3390/math9151781</span>
+          <span>Fraud Contagion Dynamics — SIR Epidemiological Model (60-Day Horizon)</span>
+          <span style={{color:'var(--subtle)', fontWeight:400, fontSize:'0.58rem'}}>Ref: MDPI Math 2021 · doi:10.3390/math9151781</span>
         </div>
-        <div style={{height: 280}}><canvas ref={canvasRef} /></div>
+        <div style={{height: 300, position:'relative'}}>
+          <canvas ref={sirCanvasRef} style={{width:'100%', height:'100%'}} />
+        </div>
       </div>
-      <div className="chart-wrap">
-        <div className="chart-title"><span>R₀ per Payment Channel — Basic Reproduction Number</span><span style={{color:'var(--subtle)',fontWeight:400}}>R₀ &lt; 1 = contained · R₀ &gt; 1 = spreading</span></div>
-        {Object.entries(data.channel_r0).map(([ch, r0]) => (
-          <div className="channel-bar-row" key={ch}>
-            <div className="channel-bar-label">{ch}</div>
-            <div className="channel-bar-track">
-              <div className="channel-bar-fill" style={{ width: `${(r0/Math.max(maxR0,1)*100).toFixed(1)}%`, background: r0 > 1 ? '#EF4444' : '#4F46E5' }} />
-            </div>
-            <div className="channel-bar-val" style={{color: r0 > 1 ? 'var(--red)' : 'var(--ink)'}}>{r0.toFixed(3)}</div>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.85rem', marginTop:'0.85rem'}}>
+        <div className="chart-wrap" style={{padding:'1rem 1rem 0.5rem'}}>
+          <div className="chart-title"><span>Epidemic Velocity — Daily New Fraud Events</span></div>
+          <div style={{height:120, position:'relative'}}>
+            <canvas ref={velCanvasRef} style={{width:'100%', height:'100%'}} />
           </div>
-        ))}
+        </div>
+        <div className="chart-wrap">
+          <div className="chart-title">
+            <span>R₀ per Payment Channel</span>
+            <span style={{color:'var(--subtle)',fontWeight:400}}>{'< 1 = contained · > 1 = spreading'}</span>
+          </div>
+          {Object.entries(data.channel_r0).map(([ch, r0]) => (
+            <div className="channel-bar-row" key={ch}>
+              <div className="channel-bar-label">{ch}</div>
+              <div style={{flex:1, position:'relative', height:10}}>
+                <div style={{position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',width:'100%',height:2,background:'rgba(0,0,0,0.08)',borderRadius:2}}/>
+                {r0 >= 1 && <div style={{position:'absolute',left:`${(1/maxR0)*100}%`,top:0,bottom:0,width:2,background:'#EF4444',borderRadius:1,zIndex:2}}/>}
+                <div className="channel-bar-track" style={{height:10}}>
+                  <div className="channel-bar-fill" style={{ width: `${(r0/Math.max(maxR0,1)*100).toFixed(1)}%`, background: r0 > 1 ? 'linear-gradient(90deg,#F97316,#EF4444)' : 'linear-gradient(90deg,#4F46E5,#6366F1)' }} />
+                </div>
+              </div>
+              <div className="channel-bar-val" style={{color: r0 > 1 ? 'var(--red)' : 'var(--ink)'}}>{r0.toFixed(3)}</div>
+            </div>
+          ))}
+          <div style={{marginTop:'0.6rem', paddingTop:'0.5rem', borderTop:'1px solid var(--border)', fontSize:'0.6rem', color:'var(--subtle)', fontFamily:"'IBM Plex Mono',monospace"}}>
+            R₀ &lt; 1 threshold line shown in red where applicable
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
 
 function CalibrationTab() {
   const [data, setData] = useState(null);
@@ -915,16 +1251,59 @@ function PipelineTab() {
 }
 
 function AnalyticsPanel({ onClose }) {
-  const [tab, setTab] = useState('montecarlo');
+  const [tab, setTab] = React.useState('montecarlo');
+  const [chatMsgs, setChatMsgs] = React.useState([
+    { role: 'assistant', content: 'Hi! I can explain any chart or metric you see here. What would you like to understand?' }
+  ]);
+  const [chatInput, setChatInput] = React.useState('');
+  const [chatLoading, setChatLoading] = React.useState(false);
+  const chatEndRef = React.useRef(null);
+
+  React.useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMsgs, chatLoading]);
+
   const TABS = [
     { id: 'montecarlo', label: 'Monte Carlo' },
-    { id: 'sir', label: 'Fraud Diffusion (SIR)' },
-    { id: 'calibration', label: 'Probability Calibration' },
+    { id: 'sir', label: 'Fraud Diffusion' },
+    { id: 'calibration', label: 'Calibration' },
     { id: 'pipeline', label: 'Live Pipeline' },
   ];
+
+  const TAB_HINTS = {
+    montecarlo: ["What does the fan chart show?", "Why is the P05 VaR band so wide?", "How is volatility calculated?"],
+    sir: ["What does R₀ of 0.035 mean in practice?", "Which channel should I worry about most?", "When does fraud peak?"],
+    calibration: ["What is a good Brier score?", "Why does calibration matter for the policy gate?", "What does AUC-ROC of 0.92 mean?"],
+    pipeline: ["What does HASH_MISMATCH mean?", "How does Merkle batching work?", "Why anchor on Polygon?"],
+  };
+
+  const sendAnalyticsChat = async (q) => {
+    const msg = q || chatInput.trim();
+    if (!msg) return;
+    setChatInput('');
+    setChatMsgs(m => [...m, { role: 'user', content: msg }]);
+    setChatLoading(true);
+
+    const tabContext = {
+      montecarlo: 'The user is looking at a Monte Carlo settlement risk chart with 1000 GBM simulations, VaR (P05), P50, P95 bands, and a volatility tracker.',
+      sir: 'The user is looking at a SIR epidemiological model applied to payment fraud: S=susceptible transactions, I=infected/active fraud, R=recovered/blocked. Shows R₀ per channel, epidemic velocity, and phase annotations (Endemic/Containment/Eradication).',
+      calibration: 'The user is looking at a probability calibration chart (reliability diagram) for an XGBoost fraud classifier. Shows Brier score, ECE, AUC-ROC, and per-channel calibration gap.',
+      pipeline: 'The user is looking at a live blockchain audit pipeline showing decisions flowing through: PROCESS → SHA-256 HASH → MERKLE BATCH → POLYGON AMOY ANCHOR stages.',
+    };
+
+    const res = await post('/api/agent', {
+      message: msg,
+      event_type: 'finance_question',
+      event_data: { question: `[Analytics context: ${tabContext[tab]}] User question: ${msg}` },
+      history: chatMsgs.slice(-6).map(m => ({ role: m.role, content: m.content })),
+    });
+    setChatLoading(false);
+    if (res.status === 'success') {
+      setChatMsgs(m => [...m, { role: 'assistant', content: res.message || '—' }]);
+    }
+  };
+
   return (
     <div className="analytics-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="analytics-modal">
+      <div className="analytics-modal" style={{maxWidth:1200}}>
         <div className="analytics-header">
           <div style={{display:'flex', alignItems:'center', gap:'0.75rem'}}>
             <div style={{fontFamily:"'Instrument Serif',serif", fontSize:'1.2rem', color:'var(--ink)'}}>Analytics</div>
@@ -937,12 +1316,125 @@ function AnalyticsPanel({ onClose }) {
             <button key={t.id} className={`analytics-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
           ))}
         </div>
-        <div className="analytics-body">
-          {tab === 'montecarlo'  && <MonteCarloTab />}
-          {tab === 'sir'         && <SIRTab />}
-          {tab === 'calibration' && <CalibrationTab />}
-          {tab === 'pipeline'    && <PipelineTab />}
+        <div style={{display:'flex', flex:1, minHeight:0, overflow:'hidden'}}>
+          <div className="analytics-body" style={{flex:1}}>
+            {tab === 'montecarlo'  && <MonteCarloTab />}
+            {tab === 'sir'         && <SIRTab />}
+            {tab === 'calibration' && <CalibrationTab />}
+            {tab === 'pipeline'    && <PipelineTab />}
+          </div>
+
+          {/* ── Analytics Chatbot ── */}
+          <div style={{width:252,borderLeft:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0,background:'var(--bg)'}}>
+            <div style={{padding:'0.6rem 0.85rem',borderBottom:'1px solid var(--border)',background:'var(--paper)'}}>
+              <div style={{fontSize:'0.6rem',fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--muted)'}}>Explain This Chart</div>
+              <div style={{fontSize:'0.62rem',color:'var(--subtle)',marginTop:'0.1rem'}}>Ask anything about what you see</div>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'0.75rem',display:'flex',flexDirection:'column',gap:'0.6rem'}}>
+              {chatMsgs.map((m,i) => (
+                <div key={i} style={{display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
+                  <div style={{maxWidth:'95%',padding:'0.45rem 0.6rem',borderRadius:3,fontSize:'0.72rem',lineHeight:1.55,background:m.role==='user'?'var(--ink)':'var(--paper)',color:m.role==='user'?'#fff':'var(--ink)',border:m.role==='user'?'none':'1px solid var(--border)'}}>
+                    {m.content}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{display:'flex',gap:3,padding:'0.45rem 0.6rem',background:'var(--paper)',border:'1px solid var(--border)',borderRadius:3,alignSelf:'flex-start'}}>
+                  {[0,1,2].map(i => <span key={i} style={{width:4,height:4,background:'var(--border2)',borderRadius:'50%',animation:`bounce 1.2s ease-in-out ${i*0.15}s infinite`,display:'block'}} />)}
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <div style={{padding:'0.4rem 0.6rem',borderTop:'1px solid var(--border)',borderBottom:'1px solid var(--border)',background:'var(--paper)'}}>
+              <div style={{fontSize:'0.58rem',fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'var(--subtle)',marginBottom:'0.3rem'}}>Try asking</div>
+              {(TAB_HINTS[tab]||[]).map(h => (
+                <button key={h} onClick={() => sendAnalyticsChat(h)} style={{display:'block',width:'100%',textAlign:'left',padding:'0.25rem 0.4rem',marginBottom:'0.2rem',fontSize:'0.62rem',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:2,cursor:'pointer',color:'var(--muted)',lineHeight:1.4,transition:'all 0.1s'}}
+                  onMouseEnter={e=>e.target.style.borderColor='var(--accent)'} onMouseLeave={e=>e.target.style.borderColor='var(--border)'}
+                >{h}</button>
+              ))}
+            </div>
+            <div style={{padding:'0.4rem 0.6rem',display:'flex',gap:'0.3rem',background:'var(--paper)'}}>
+              <input
+                style={{flex:1,border:'1px solid var(--border)',borderRadius:2,padding:'0.35rem 0.5rem',fontSize:'0.72rem',fontFamily:"'Inter',sans-serif",background:'var(--bg)',color:'var(--ink)',outline:'none'}}
+                placeholder="Ask anything…"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendAnalyticsChat()}
+                disabled={chatLoading}
+              />
+              <button onClick={() => sendAnalyticsChat()} disabled={!chatInput.trim() || chatLoading}
+                style={{background:'var(--ink)',color:'#fff',border:'none',borderRadius:2,padding:'0.35rem 0.6rem',fontSize:'0.68rem',cursor:'pointer',flexShrink:0,opacity:chatLoading?0.4:1}}>→</button>
+            </div>
+          </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Transaction Modal ──────────────────────────────────────────────────────
+function AddTransactionModal({ onClose, onSubmit }) {
+  const [form, setForm] = React.useState({ customer_name: '', amount: '', channel: 'upi', failure_type: 'insufficient_funds' });
+  const [submitting, setSubmitting] = React.useState(false);
+  const set = (k, v) => setForm(f => ({...f, [k]: v}));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.customer_name.trim() || !form.amount) return;
+    setSubmitting(true);
+    await onSubmit(form);
+    setSubmitting(false);
+  };
+
+  const fieldStyle = { width:'100%', padding:'0.5rem 0.65rem', border:'1px solid var(--border)', borderRadius:3, fontSize:'0.8rem', fontFamily:"'Inter',sans-serif", background:'var(--bg)', color:'var(--ink)', outline:'none' };
+  const labelStyle = { fontSize:'0.6rem', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', color:'var(--subtle)', display:'block', marginBottom:'0.3rem' };
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn 0.15s ease'}}>
+      <div style={{background:'var(--paper)',border:'1px solid var(--border2)',borderRadius:6,width:'min(440px,92vw)',boxShadow:'0 24px 80px rgba(0,0,0,0.18)',animation:'slideUp 0.2s ease'}}>
+        <div style={{padding:'1rem 1.25rem',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <div style={{fontFamily:"'Instrument Serif',serif",fontSize:'1.1rem'}}>Add Payment Event</div>
+            <div style={{fontSize:'0.62rem',color:'var(--muted)',marginTop:'0.1rem'}}>Goes through the full AI pipeline — classified, hashed, anchored.</div>
+          </div>
+          <button onClick={onClose} style={{background:'none',border:'1px solid var(--border)',borderRadius:3,width:28,height:28,cursor:'pointer',fontSize:'1rem',color:'var(--muted)'}}>×</button>
+        </div>
+        <form onSubmit={handleSubmit} style={{padding:'1.25rem',display:'flex',flexDirection:'column',gap:'1rem'}}>
+          <div>
+            <label style={labelStyle}>Customer Name</label>
+            <input style={fieldStyle} placeholder="e.g. Priya Sharma" value={form.customer_name} onChange={e=>set('customer_name',e.target.value)} required />
+          </div>
+          <div>
+            <label style={labelStyle}>Amount (₹)</label>
+            <input style={fieldStyle} type="number" placeholder="e.g. 12500" min="1" value={form.amount} onChange={e=>set('amount',e.target.value)} required />
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}}>
+            <div>
+              <label style={labelStyle}>Channel</label>
+              <select style={fieldStyle} value={form.channel} onChange={e=>set('channel',e.target.value)}>
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+                <option value="netbanking">Netbanking</option>
+                <option value="wallet">Wallet</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Failure Type</label>
+              <select style={fieldStyle} value={form.failure_type} onChange={e=>set('failure_type',e.target.value)}>
+                <option value="insufficient_funds">Insufficient Funds</option>
+                <option value="auth_3ds_failure">3DS Auth Failure</option>
+                <option value="gateway_timeout">Gateway Timeout</option>
+                <option value="fraud_flag">Fraud Flag</option>
+              </select>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:'0.5rem',justifyContent:'flex-end',paddingTop:'0.25rem',borderTop:'1px solid var(--border)'}}>
+            <button type="button" onClick={onClose} style={{background:'none',border:'1px solid var(--border)',borderRadius:3,padding:'0.4rem 0.85rem',fontSize:'0.75rem',cursor:'pointer',color:'var(--muted)'}}>Cancel</button>
+            <button type="submit" disabled={submitting || !form.customer_name.trim() || !form.amount} style={{background:'var(--accent)',color:'#fff',border:'none',borderRadius:3,padding:'0.4rem 0.85rem',fontSize:'0.75rem',fontWeight:600,cursor:'pointer',opacity:submitting?0.6:1}}>
+              {submitting ? 'Processing…' : '⚡ Run AI Pipeline'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -950,13 +1442,18 @@ function AnalyticsPanel({ onClose }) {
 
 // ── Main App ───────────────────────────────────────────────────────────────────
 function App() {
-  const [selectedId, setSelectedId]     = useState(null);
-  const [conversations, setConversations] = useState({});  // { eventId: [messages] }
-  const [inputVal, setInputVal]         = useState('');
-  const [loading, setLoading]           = useState(false);
-  const [auditRecord, setAuditRecord]   = useState(null);
-  const [stats, setStats]               = useState(null);
+  const [selectedId, setSelectedId]       = useState(null);
+  const [conversations, setConversations] = useState({});
+  const [inputVal, setInputVal]           = useState('');
+  const [loading, setLoading]             = useState(false);
+  const [auditRecord, setAuditRecord]     = useState(null);
+  const [stats, setStats]                 = useState(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [tamperResults, setTamperResults] = useState(null);
+  const [tamperRunning, setTamperRunning] = useState(false);
+  const [showAddTx, setShowAddTx]         = useState(false);
+  const [liveSimOn, setLiveSimOn]         = useState(false);
+  const liveSimRef = useRef(null);
   const msgsEndRef = useRef(null);
 
   const selectedEvent = EVENTS.find(e => e.id === selectedId);
@@ -1051,14 +1548,22 @@ function App() {
   };
 
   const runTamperDemo = async () => {
-    setLoading(true);
+    setTamperRunning(true);
     const res = await post('/api/demo/tamper', { n: 5 });
-    setLoading(false);
+    setTamperRunning(false);
     if (res.status === 'success') {
-      alert("Tamper test complete: " + res.message + ". Refreshing verification stats...");
+      // Fetch per-record verification results to show in the visual modal
+      const verifyRes = await api('/api/demo/verify-results');
+      setTamperResults({
+        summary: res.message,
+        records: verifyRes.records || [],
+        total: verifyRes.total || 0,
+        verified: verifyRes.verified || 0,
+        failed: verifyRes.failed || 0,
+      });
       fetchStats();
     } else {
-      alert("Error: " + (res.detail || 'Failed'));
+      setTamperResults({ error: res.detail || 'Tamper test failed' });
     }
   };
 
@@ -1074,12 +1579,48 @@ function App() {
     }
   };
 
-  const handleKeyDown = e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  const toggleLiveSim = () => {
+    if (liveSimOn) {
+      clearInterval(liveSimRef.current);
+      setLiveSimOn(false);
+      return;
     }
+    setLiveSimOn(true);
+    const names = ['Arjun Sharma','Meera Pillai','Rohan Das','Kavya Nair','Siddharth Rao','Ananya Bose'];
+    const channels = ['upi','card','netbanking','wallet'];
+    const types = ['insufficient_funds','auth_3ds_failure','gateway_timeout','fraud_flag'];
+    const dotMap = { fraud_flag:'red', auth_3ds_failure:'blue', gateway_timeout:'orange', insufficient_funds:'amber' };
+    liveSimRef.current = setInterval(async () => {
+      const name = names[Math.floor(Math.random()*names.length)];
+      const amt = Math.floor(Math.random()*45000)+500;
+      const ch = channels[Math.floor(Math.random()*channels.length)];
+      const ft = types[Math.floor(Math.random()*types.length)];
+      const newId = 'live_' + Date.now();
+      const newEv = {
+        id: newId, type: 'payment_failed', dot: dotMap[ft] || 'red',
+        title: ft.replace(/_/g,' '), meta: `${name} · ₹${amt.toLocaleString('en-IN')}`, time: 'just now',
+        event_data: { transaction: { transaction_id: newId, customer_name: name, product_name: 'Live Order', amount: amt, channel: ch, decline_code: ft.toUpperCase(), hour_of_day: new Date().getHours(), day_of_week: new Date().getDay(), is_weekend: [0,6].includes(new Date().getDay()), retry_count_so_far: 0, customer_txn_history_len: Math.floor(Math.random()*100), amount_vs_customer_avg_ratio: +(Math.random()*4).toFixed(2), time_since_last_failure_hours: 0, merchant_category: 'ecommerce', merchant_name: 'TechGadgets.in' } }
+      };
+      EVENTS.unshift(newEv);
+      // Force re-render by touching state
+      setStats(s => s ? {...s} : s);
+    }, 8000);
   };
+
+  const handleAddTransaction = async (form) => {
+    const newId = 'custom_' + Date.now();
+    const dotMap = { fraud_flag:'red', auth_3ds_failure:'blue', gateway_timeout:'orange', insufficient_funds:'amber' };
+    const newEv = {
+      id: newId, type: 'payment_failed', dot: dotMap[form.failure_type] || 'red',
+      title: form.failure_type.replace(/_/g,' '), meta: `${form.customer_name} · ₹${Number(form.amount).toLocaleString('en-IN')}`, time: 'just now',
+      event_data: { transaction: { transaction_id: newId, customer_name: form.customer_name, product_name: 'Custom Order', amount: Number(form.amount), channel: form.channel, decline_code: form.failure_type.toUpperCase(), hour_of_day: new Date().getHours(), day_of_week: new Date().getDay(), is_weekend: [0,6].includes(new Date().getDay()), retry_count_so_far: 0, customer_txn_history_len: 25, amount_vs_customer_avg_ratio: 1.2, time_since_last_failure_hours: 0, merchant_category: 'ecommerce', merchant_name: 'TechGadgets.in' } }
+    };
+    EVENTS.unshift(newEv);
+    setShowAddTx(false);
+    // Auto-select and trigger the agent
+    await selectEvent(newId);
+  };
+
 
   // Count unread-ish events by type
   const failedCount   = EVENTS.filter(e => e.type === 'payment_failed').length;
@@ -1093,9 +1634,68 @@ function App() {
     { label: 'Financial insights', types: ['finance_question'] },
   ];
 
+  const handleKeyDown = e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
   return (
     <div className="shell">
       {showAnalytics && <AnalyticsPanel onClose={() => setShowAnalytics(false)} />}
+
+      {/* ── Tamper Result Modal ── */}
+      {tamperResults && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn 0.15s ease'}}>
+          <div style={{background:'var(--paper)',border:'1px solid var(--border2)',borderRadius:6,width:'min(640px,92vw)',maxHeight:'82vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.2)',animation:'slideUp 0.2s ease'}}>
+            <div style={{padding:'1rem 1.25rem',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontFamily:"'Instrument Serif',serif",fontSize:'1.2rem'}}>Tamper Detection Proof</div>
+                <div style={{fontSize:'0.62rem',color:'var(--muted)',marginTop:'0.2rem',fontFamily:"'IBM Plex Mono',monospace"}}>
+                  {tamperResults.error ? 'ERROR' : `${tamperResults.total} records checked · ${tamperResults.verified} VERIFIED · ${tamperResults.failed} HASH_MISMATCH`}
+                </div>
+              </div>
+              <button onClick={() => setTamperResults(null)} style={{background:'none',border:'1px solid var(--border)',borderRadius:3,width:28,height:28,cursor:'pointer',fontSize:'1rem',color:'var(--muted)'}}>×</button>
+            </div>
+            {tamperResults.error ? (
+              <div style={{padding:'1.5rem',color:'var(--red)',fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.75rem'}}>{tamperResults.error}</div>
+            ) : (
+              <>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.75rem',padding:'1rem 1.25rem',borderBottom:'1px solid var(--border)'}}>
+                  {[
+                    [tamperResults.total,'Total records'],
+                    [tamperResults.verified,'✅ Verified','var(--green)'],
+                    [tamperResults.failed,'❌ Hash mismatch','var(--red)'],
+                  ].map(([v,l,c]) => (
+                    <div key={l} style={{padding:'0.75rem',border:'1px solid var(--border)',borderRadius:4,background:'var(--bg)'}}>
+                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'1.4rem',fontWeight:500,color:c||'var(--ink)'}}>{v}</div>
+                      <div style={{fontSize:'0.6rem',fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--subtle)',marginTop:'0.2rem'}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{flex:1,overflowY:'auto',padding:'0.75rem 1.25rem'}}>
+                  {(tamperResults.records || []).map((r,i) => (
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.5rem 0.6rem',marginBottom:'0.3rem',border:'1px solid',borderColor:r.status==='HASH_MISMATCH'?'var(--red-bd)':'var(--border)',borderRadius:3,background:r.status==='HASH_MISMATCH'?'var(--red-bg)':'transparent'}}>
+                      <span style={{fontSize:'0.8rem'}}>{r.status==='HASH_MISMATCH'?'❌':'✅'}</span>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.62rem',color:'var(--muted)',flex:1}}>{r.record_id?.substring(0,24)}…</span>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.62rem',color:r.status==='HASH_MISMATCH'?'var(--red)':'var(--green)',fontWeight:700}}>{r.status}</span>
+                      {r.status==='HASH_MISMATCH'&&<span style={{fontSize:'0.58rem',color:'var(--red)',opacity:0.8}}>altered post-anchoring</span>}
+                    </div>
+                  ))}
+                </div>
+                <div style={{padding:'0.75rem 1.25rem',borderTop:'1px solid var(--border)',background:'var(--bg)',fontSize:'0.68rem',color:'var(--muted)',fontStyle:'italic',lineHeight:1.5}}>
+                  SHA-256 is deterministic. Every altered byte changes the hash. 100% catch rate — not tuned, structural.
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Transaction Modal ── */}
+      {showAddTx && <AddTransactionModal onClose={() => setShowAddTx(false)} onSubmit={handleAddTransaction} />}
+
       {/* ── Header ── */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -1140,7 +1740,18 @@ function App() {
         <aside className="events-panel">
           <div className="events-header">
             <span className="events-title">Activity</span>
-            <span className="mono" style={{ fontSize: '0.62rem', color: 'var(--subtle)' }}>{EVENTS.filter(e => e.id.startsWith('e')).length} events</span>
+            <div style={{display:'flex',gap:'0.4rem',alignItems:'center'}}>
+              <button
+                onClick={() => setShowAddTx(true)}
+                style={{fontSize:'0.6rem',fontWeight:700,background:'var(--accent)',color:'#fff',border:'none',borderRadius:2,padding:'0.15rem 0.4rem',cursor:'pointer',fontFamily:"'IBM Plex Mono',monospace"}}
+                title="Add a custom payment event"
+              >+ Add</button>
+              <button
+                onClick={toggleLiveSim}
+                style={{fontSize:'0.6rem',fontWeight:700,background:liveSimOn?'#DC2626':'#E4E4E2',color:liveSimOn?'#fff':'var(--muted)',border:'none',borderRadius:2,padding:'0.15rem 0.4rem',cursor:'pointer',fontFamily:"'IBM Plex Mono',monospace"}}
+                title={liveSimOn ? 'Stop live simulation' : 'Start live simulation — new events every 8s'}
+              >{liveSimOn ? '■ Stop' : '▶ Sim'}</button>
+            </div>
           </div>
           <div className="events-list">
             {eventsBySection.map(section => {
@@ -1180,11 +1791,11 @@ function App() {
 
             <div className="event-section-label" style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.8rem' }}>Demo Controls (Phase 12)</div>
             
-            <div className={`event-item`} onClick={runTamperDemo} style={{ opacity: loading ? 0.5 : 1 }}>
-              <div className="event-dot dot-red" />
+            <div className={`event-item`} onClick={!tamperRunning ? runTamperDemo : undefined} style={{ opacity: tamperRunning ? 0.6 : 1, cursor: tamperRunning ? 'wait' : 'pointer' }}>
+              <div className="event-dot dot-red" style={tamperRunning ? {animation:'pulse 0.8s ease-in-out infinite'} : {}} />
               <div className="event-body">
-                <div className="event-title">Run Tamper Test</div>
-                <div className="event-meta">Silently corrupt 5 records</div>
+                <div className="event-title">{tamperRunning ? 'Running tamper test…' : 'Run Tamper Test'}</div>
+                <div className="event-meta">{tamperRunning ? 'Corrupting 5 records…' : 'Silently corrupt 5 records'}</div>
                 <div className="event-time">Proves cryptographic seal</div>
               </div>
             </div>
@@ -1258,8 +1869,8 @@ function App() {
       </div>
 
       <footer className="footer">
-        <span>Attest · AI payment intelligence · Razorpay AI Buildathon 2026</span>
-        <span>Groq qwen3.8-27b · XGBoost + Isolation Forest · Polygon Amoy blockchain proof</span>
+        <span style={{fontFamily:"'Instrument Serif',serif", fontSize:'0.75rem', letterSpacing:'-0.01em'}}>Attest</span>
+        <span>Razorpay AI Buildathon · 2026</span>
       </footer>
     </div>
   );

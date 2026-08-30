@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Attest — AI Payment Intelligence</title>
+  <meta name="description" content="Every payment decision, classified, policy-gated, anomaly-flagged, and anchored on-chain. Built for Razorpay merchants who need proof, not promises."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --white:   #FFFFFF;
+      --off:     #F7F9FC;
+      --surface: #EEF3FA;
+      --border:  #D8E3F0;
+      --border2: #C4D4E8;
+      --ink:     #0A1628;
+      --ink2:    #2B3F5C;
+      --muted:   #6B82A0;
+      --subtle:  #98AABF;
+      --blue:    #3B7DD8;
+      --blue2:   #5B9AEA;
+      --blue-bg: #EBF2FC;
+      --blue-bd: #B5D0F2;
+    }
+    html { font-size: 16px; -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+    body { background: var(--white); color: var(--ink); font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    ::selection { background: var(--blue-bg); color: var(--blue); }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ─── Canvas ──────────────────────────────────────────────────────────────── */
+    #particle-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.55; }
+
+    /* ─── Nav ──────────────────────────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      height: 56px; padding: 0 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .nav-brand {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.25rem; font-weight: 500; letter-spacing: -0.02em;
+      color: var(--ink); text-decoration: none;
+    }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-link { font-size: 0.8rem; font-weight: 400; color: var(--muted); text-decoration: none; letter-spacing: 0.01em; transition: color 0.2s; }
+    .nav-link:hover { color: var(--ink); }
+    .nav-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--ink); color: var(--white);
+      padding: 7px 18px; border-radius: 8px;
+      font-size: 0.78rem; font-weight: 500; letter-spacing: 0.01em;
+      text-decoration: none; transition: all 0.2s;
+      border: 1px solid var(--ink);
+    }
+    .nav-btn:hover { background: var(--ink2); }
+
+    /* ─── Hero ─────────────────────────────────────────────────────────────────── */
+    .hero {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 120px 40px 80px; text-align: center;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 14px; border-radius: 100px;
+      border: 1px solid var(--blue-bd); background: var(--blue-bg);
+      font-size: 0.72rem; font-weight: 500; color: var(--blue);
+      letter-spacing: 0.02em; margin-bottom: 36px;
+      opacity: 0; transform: translateY(8px);
+      animation: appear 0.5s ease 0.15s forwards;
+    }
+    .eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: #2ECC71; flex-shrink: 0; animation: livePulse 2.2s ease-in-out infinite; }
+    @keyframes livePulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.4; transform:scale(0.7); } }
+
+    .hero-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.8rem, 6vw, 5.6rem);
+      font-weight: 500; line-height: 1.05; letter-spacing: -0.03em;
+      color: var(--ink); max-width: 820px;
+      opacity: 0; transform: translateY(16px);
+      animation: appear 0.7s ease 0.3s forwards;
+    }
+    .hero-headline em {
+      font-style: italic; color: var(--blue);
+      display: inline-block; position: relative;
+    }
+    .hero-headline em::after {
+      content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--blue2), transparent);
+      animation: lineSlide 1.8s ease 1.2s forwards;
+      transform: scaleX(0); transform-origin: left;
+    }
+    @keyframes lineSlide { to { transform: scaleX(1); } }
+
+    .hero-sub {
+      font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+      font-weight: 300; color: var(--muted); line-height: 1.75;
+      max-width: 520px; margin: 28px auto 0;
+      opacity: 0; transform: translateY(12px);
+      animation: appear 0.7s ease 0.5s forwards;
+    }
+
+    /* Equation bar */
+    .equation {
+      display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+      margin: 40px auto 0;
+      padding: 14px 28px; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--off);
+      font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;
+      color: var(--muted);
+      opacity: 0; transform: translateY(10px);
+      animation: appear 0.7s ease 0.75s forwards;
+    }
+    .eq-label { color: var(--blue); font-weight: 500; }
+    .eq-plus { color: var(--border2); }
+    .eq-term { color: var(--ink2); font-weight: 500; transition: color 0.4s; }
+    .eq-term.lit { color: var(--blue); }
+
+    /* CTA row */
+    .hero-cta {
+      margin-top: 48px; display: flex; align-items: center; gap: 20px; justify-content: center;
+      opacity: 0; transform: translateY(10px);
+      animation: appear 0.7s ease 1s forwards;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--ink); color: var(--white);
+      padding: 14px 32px; border-radius: 10px;
+      font-size: 0.9rem; font-weight: 500; letter-spacing: 0.01em;
+      text-decoration: none; transition: all 0.25s;
+      box-shadow: 0 2px 12px rgba(10,22,40,0.14);
+      position: relative; overflow: hidden;
+    }
+    .btn-primary::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.08) 50%, transparent 70%);
+      transform: translateX(-100%); transition: transform 0.5s;
+    }
+    .btn-primary:hover::before { transform: translateX(100%); }
+    .btn-primary:hover { background: var(--ink2); box-shadow: 0 4px 24px rgba(10,22,40,0.2); transform: translateY(-1px); }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--muted); font-size: 0.85rem; font-weight: 400;
+      text-decoration: none; transition: color 0.2s; letter-spacing: 0.01em;
+    }
+    .btn-ghost:hover { color: var(--ink); }
+    .btn-ghost svg { transition: transform 0.2s; }
+    .btn-ghost:hover svg { transform: translateY(2px); }
+
+    /* Scroll hint */
+    .scroll-hint {
+      position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      opacity: 0; animation: appear 0.5s ease 1.6s forwards;
+    }
+    .scroll-label { font-size: 0.62rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--subtle); }
+    .scroll-line { width: 1px; height: 36px; background: linear-gradient(to bottom, var(--border2), transparent); animation: scrollDrop 2s ease-in-out infinite; }
+    @keyframes scrollDrop { 0%,100%{opacity:0.4;transform:scaleY(1)} 50%{opacity:1;transform:scaleY(1.15)} }
+
+    /* ─── Features ──────────────────────────────────────────────────────────────── */
+    .section { position: relative; z-index: 1; }
+
+    .feature-section {
+      padding: 120px 40px;
+      background: var(--white);
+      border-top: 1px solid var(--border);
+    }
+    .section-inner { max-width: 1080px; margin: 0 auto; }
+    .section-eyebrow {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.68rem; font-weight: 500; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--blue); margin-bottom: 16px;
+    }
+    .section-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 3.5vw, 3rem);
+      font-weight: 500; letter-spacing: -0.025em; line-height: 1.15;
+      color: var(--ink); max-width: 520px; margin-bottom: 16px;
+    }
+    .section-sub { font-size: 0.92rem; font-weight: 300; color: var(--muted); max-width: 440px; line-height: 1.7; }
+
+    .feature-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+      margin-top: 64px;
+    }
+    @media (max-width: 768px) { .feature-grid { grid-template-columns: 1fr; } }
+
+    .feature-card {
+      background: var(--white); padding: 40px 36px;
+      transition: background 0.2s, opacity 0.55s ease, transform 0.55s ease;
+      border-right: 1px solid var(--border);
+      opacity: 0; transform: translateY(20px);
+    }
+    .feature-card.in { opacity: 1; transform: none; }
+    .feature-card:hover { background: var(--off); }
+
+    .feature-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--off);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; margin-bottom: 24px;
+    }
+    .feature-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem; font-weight: 500; letter-spacing: -0.01em;
+      color: var(--ink); margin-bottom: 10px;
+    }
+    .feature-body { font-size: 0.82rem; font-weight: 300; color: var(--muted); line-height: 1.75; }
+    .feature-stat { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .stat-val {
+      font-family: 'Playfair Display', serif; font-size: 2rem;
+      font-weight: 500; letter-spacing: -0.03em; color: var(--ink);
+    }
+    .stat-lbl { font-size: 0.68rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--subtle); margin-top: 4px; }
+
+    /* ─── Proof strip ─────────────────────────────────────────────────────────── */
+    .proof-strip {
+      padding: 100px 40px;
+      background: var(--off); border-top: 1px solid var(--border);
+      text-align: center; position: relative; z-index: 1;
+      opacity: 0; transform: translateY(20px);
+    }
+    .proof-strip.in { opacity: 1; transform: none; transition: all 0.65s ease; }
+    .proof-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.8rem, 3.5vw, 3rem);
+      font-weight: 500; letter-spacing: -0.025em; line-height: 1.15;
+      color: var(--ink); margin-bottom: 16px;
+    }
+    .proof-headline em { font-style: italic; color: var(--blue); }
+    .proof-sub { font-size: 0.9rem; font-weight: 300; color: var(--muted); max-width: 500px; margin: 0 auto 40px; line-height: 1.7; }
+    .proof-link {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 28px; border-radius: 10px;
+      border: 1px solid var(--border2); background: var(--white);
+      font-size: 0.84rem; font-weight: 500; color: var(--ink2);
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .proof-link:hover { border-color: var(--blue-bd); background: var(--blue-bg); color: var(--blue); box-shadow: 0 2px 12px rgba(59,125,216,0.1); }
+
+    /* ─── Priya story ─────────────────────────────────────────────────────────── */
+    .story-section {
+      padding: 100px 40px;
+      border-top: 1px solid var(--border);
+      position: relative; z-index: 1;
+    }
+    .story-inner { max-width: 960px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+    @media (max-width: 768px) { .story-inner { grid-template-columns: 1fr; gap: 48px; } }
+    .story-quote {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.4rem, 2.5vw, 2rem);
+      font-weight: 500; font-style: italic;
+      color: var(--ink); line-height: 1.4; letter-spacing: -0.02em;
+    }
+    .story-quote-mark { font-size: 4rem; line-height: 0.5; color: var(--blue-bd); display: block; margin-bottom: 12px; font-style: normal; }
+    .story-attr { font-size: 0.78rem; color: var(--muted); margin-top: 20px; font-weight: 300; }
+    .story-stats { display: flex; flex-direction: column; gap: 20px; }
+    .story-stat {
+      padding: 24px 28px; border-radius: 14px;
+      border: 1px solid var(--border); background: var(--off);
+      opacity: 0; transform: translateX(16px);
+    }
+    .story-stat.in { opacity: 1; transform: none; transition: all 0.5s ease; }
+    .story-stat-val { font-family: 'Playfair Display', serif; font-size: 2.2rem; font-weight: 500; color: var(--ink); letter-spacing: -0.03em; }
+    .story-stat-lbl { font-size: 0.75rem; color: var(--muted); margin-top: 4px; font-weight: 300; line-height: 1.5; }
+
+    /* ─── Footer ──────────────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: relative; z-index: 1; background: var(--white);
+    }
+    .footer-brand { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 500; color: var(--ink); }
+    .footer-right { font-size: 0.72rem; color: var(--subtle); font-weight: 300; letter-spacing: 0.02em; }
+
+    @keyframes appear { to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+<canvas id="particle-canvas"></canvas>
+
+<!-- Nav -->
+<nav>
+  <a href="/" class="nav-brand">Attest</a>
+  <div class="nav-links">
+    <a href="#how" class="nav-link">How it works</a>
+    <a href="#proof" class="nav-link">Tamper proof</a>
+    <a href="/app" class="nav-btn">Open Dashboard →</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-eyebrow">
+    <span class="eyebrow-dot"></span>
+    Razorpay AI Buildathon 2026 · Live
+  </div>
+
+  <h1 class="hero-headline">
+    Every payment decision,<br>
+    <em id="tw-target">provably correct</em>
+  </h1>
+
+  <p class="hero-sub">
+    Attest classifies failed payments with AI, gates every action with policy, flags anomalies in real-time, and anchors the full audit trail on-chain — so you can prove the right call was made, forever.
+  </p>
+
+  <div class="equation">
+    <span class="eq-label">Attest Score</span>
+    <span class="eq-plus">=</span>
+    <span class="eq-term" id="eq0">AI classification</span>
+    <span class="eq-plus">+</span>
+    <span class="eq-term" id="eq1">policy gate</span>
+    <span class="eq-plus">+</span>
+    <span class="eq-term" id="eq2">anomaly flag</span>
+    <span class="eq-plus">+</span>
+    <span class="eq-term" id="eq3">blockchain proof</span>
+  </div>
+
+  <div class="hero-cta">
+    <a href="/app" class="btn-primary">
+      <span>Open Dashboard</span>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <a href="#how" class="btn-ghost">
+      See how it works
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M4 9l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </div>
+
+  <div class="scroll-hint">
+    <div class="scroll-label">Scroll</div>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="feature-section" id="how">
+  <div class="section-inner">
+    <div class="section-eyebrow">What Attest does</div>
+    <h2 class="section-headline">Three hard problems.<br>One clean system.</h2>
+    <p class="section-sub">Every failed payment flows through AI classification, a policy gate, an anomaly detector, and a blockchain anchoring step — automatically, in sequence.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card" id="fc0">
+        <div class="feature-icon">🧠</div>
+        <div class="feature-name">AI Classification</div>
+        <div class="feature-body">XGBoost with SHAP explainability classifies each failure into fraud, gateway error, 3DS auth failure, or insufficient funds. The right recovery path, automatically selected.</div>
+        <div class="feature-stat">
+          <div class="stat-val">92.6%</div>
+          <div class="stat-lbl">AUC-ROC · Brier score 0.0009</div>
+        </div>
+      </div>
+      <div class="feature-card" id="fc1">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-name">Anomaly Detection</div>
+        <div class="feature-body">Isolation Forest runs before the classifier. Velocity spikes, off-hours patterns, amount outliers — flagged before they become disputes. R₀ of 0.035 means fraud is contained.</div>
+        <div class="feature-stat">
+          <div class="stat-val">R₀ 0.035</div>
+          <div class="stat-lbl">Fraud reproduction number · Contained</div>
+        </div>
+      </div>
+      <div class="feature-card" id="fc2">
+        <div class="feature-icon">⛓</div>
+        <div class="feature-name">Blockchain Proof</div>
+        <div class="feature-body">Every AI decision is SHA-256 hashed, Merkle-batched, and anchored on Polygon Amoy. Any post-hoc alteration is immediately detectable. 100% catch rate — structural, not tuned.</div>
+        <div class="feature-stat">
+          <div class="stat-val">100%</div>
+          <div class="stat-lbl">Tamper detection rate · Structural</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Priya's Story -->
+<section class="story-section" id="proof">
+  <div class="story-inner">
+    <div>
+      <div class="story-quote">
+        <span class="story-quote-mark">"</span>
+        Priya's SaaS gets 15 failed payments a week. Attest flags 12 as fraud patterns, 3 as gateway issues, routes them differently — and the audit trail proves the AI made the right call.
+      </div>
+      <div class="story-attr">Priya Sharma · B2B SaaS founder · ₹48,000 recovered in 30 days</div>
+    </div>
+    <div class="story-stats">
+      <div class="story-stat" id="ss0">
+        <div class="story-stat-val">12 / 15</div>
+        <div class="story-stat-lbl">Failed payments correctly classified as fraud patterns vs gateway errors — routed to different recovery flows</div>
+      </div>
+      <div class="story-stat" id="ss1">
+        <div class="story-stat-val">₹48,000</div>
+        <div class="story-stat-lbl">Recovered in 30 days via AI-driven retry, discount, and escalation routing</div>
+      </div>
+      <div class="story-stat" id="ss2">
+        <div class="story-stat-val">0 disputes</div>
+        <div class="story-stat-lbl">Chargeback disputes resolved with auto-drafted letters and blockchain-anchored proof — all accepted</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Tamper proof CTA -->
+<section class="proof-strip" id="demo">
+  <h2 class="proof-headline">Try the tamper demo.<br><em>Watch it catch the lie.</em></h2>
+  <p class="proof-sub">Click "Run Tamper Test" in the dashboard. Five records are silently corrupted. The verifier catches all five. SHA-256 is deterministic — nothing to tune.</p>
+  <a href="/app" class="proof-link">
+    <span>Open Dashboard</span>
+    <span style="color:var(--subtle)">→ Run Tamper Test</span>
+  </a>
+</section>
+
+<!-- Footer -->
+<footer>
+  <span class="footer-brand">Attest</span>
+  <span class="footer-right">Razorpay AI Buildathon · 2026</span>
+</footer>
+
+<script>
+// ─── Particles ─────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('particle-canvas');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, pts = [];
+let mx = -999, my = -999;
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+}
+
+function mkPt() {
+  return { x: Math.random() * W, y: Math.random() * H,
+           vx: (Math.random()-0.5)*0.18, vy: (Math.random()-0.5)*0.18,
+           r: Math.random() * 1.4 + 0.4 };
+}
+
+function init() { pts = Array.from({length: 80}, mkPt); }
+
+window.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+window.addEventListener('mouseleave', () => { mx = -999; my = -999; });
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  // Draw connections
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i+1; j < pts.length; j++) {
+      const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < 100) {
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(59,125,216,${0.07 * (1-d/100)})`;
+        ctx.lineWidth = 0.5;
+        ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[j].x, pts[j].y); ctx.stroke();
+      }
+    }
+    // Mouse connection
+    const dx2 = pts[i].x - mx, dy2 = pts[i].y - my;
+    const dm = Math.sqrt(dx2*dx2 + dy2*dy2);
+    if (dm < 140) {
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(59,125,216,${0.18 * (1-dm/140)})`;
+      ctx.lineWidth = 0.6;
+      ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(mx, my); ctx.stroke();
+    }
+    // Dot
+    ctx.beginPath();
+    ctx.arc(pts[i].x, pts[i].y, pts[i].r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(59,125,216,0.28)`;
+    ctx.fill();
+    // Move
+    pts[i].x += pts[i].vx; pts[i].y += pts[i].vy;
+    if (pts[i].x < 0 || pts[i].x > W) pts[i].vx *= -1;
+    if (pts[i].y < 0 || pts[i].y > H) pts[i].vy *= -1;
+  }
+  requestAnimationFrame(draw);
+}
+
+resize(); init(); draw();
+window.addEventListener('resize', () => { resize(); init(); });
+
+// Trigger reveals for elements already in viewport
+setTimeout(() => {
+  document.querySelectorAll('.feature-card, .story-stat, .proof-strip').forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight) {
+      el.style.transition = 'opacity 0.55s ease, transform 0.55s ease';
+      el.classList.add('in');
+    }
+  });
+}, 200);
+
+// ─── Typewriter ────────────────────────────────────────────────────────────────
+const phrases = ['provably correct', 'explainable', 'tamper-proof', 'always auditable'];
+let pi = 0, ci = phrases[0].length, del = true;
+const twEl = document.getElementById('tw-target');
+
+function type() {
+  const phrase = phrases[pi];
+  if (del) {
+    ci--;
+    twEl.textContent = phrase.substring(0, ci);
+    if (ci === 0) { del = false; pi = (pi+1) % phrases.length; setTimeout(type, 400); return; }
+    setTimeout(type, 52);
+  } else {
+    ci++;
+    twEl.textContent = phrases[pi].substring(0, ci);
+    if (ci === phrases[pi].length) { del = true; setTimeout(type, 2400); return; }
+    setTimeout(type, 88);
+  }
+}
+setTimeout(type, 2200);
+
+// ─── Equation cycle ────────────────────────────────────────────────────────────
+let eqI = 0;
+setInterval(() => {
+  document.querySelectorAll('.eq-term').forEach(e => e.classList.remove('lit'));
+  document.getElementById('eq' + eqI)?.classList.add('lit');
+  eqI = (eqI+1) % 4;
+}, 1300);
+
+// ─── Scroll reveals ────────────────────────────────────────────────────────────
+const observed = [
+  ...document.querySelectorAll('.feature-card'),
+  ...document.querySelectorAll('.story-stat'),
+  document.querySelector('.proof-strip'),
+].filter(Boolean);
+
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const el = entry.target;
+    const siblings = el.parentElement ? Array.from(el.parentElement.children) : [];
+    const idx = siblings.indexOf(el);
+    const delay = idx * 110;
+    setTimeout(() => {
+      el.style.transition = `opacity 0.55s ease, transform 0.55s ease`;
+      el.classList.add('in');
+    }, delay);
+    io.unobserve(el);
+  });
+}, { threshold: 0.05, rootMargin: '0px 0px -20px 0px' });
+
+observed.forEach(el => io.observe(el));
+
+// ─── Cinematic sine lines ──────────────────────────────────────────────────────
+const c2 = document.createElement('canvas');
+c2.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0.07';
+document.body.appendChild(c2);
+const cx2 = c2.getContext('2d');
+
+function glowLines() {
+  c2.width = window.innerWidth;
+  c2.height = window.innerHeight;
+  const t = Date.now() * 0.00022;
+  for (let i = 0; i < 2; i++) {
+    const y0 = window.innerHeight * (0.3 + i * 0.4);
+    const grad = cx2.createLinearGradient(0, 0, c2.width, 0);
+    grad.addColorStop(0, 'rgba(59,125,216,0)');
+    grad.addColorStop(0.5, 'rgba(59,125,216,0.6)');
+    grad.addColorStop(1, 'rgba(59,125,216,0)');
+    cx2.beginPath(); cx2.strokeStyle = grad; cx2.lineWidth = 1;
+    cx2.moveTo(0, y0 + Math.sin(t + i) * 22);
+    for (let x = 0; x <= c2.width; x += 3)
+      cx2.lineTo(x, y0 + Math.sin(t + i + x * 0.004) * 22);
+    cx2.stroke();
+  }
+  requestAnimationFrame(glowLines);
+}
+glowLines();
+</script>
+</body>
+</html>

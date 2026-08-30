@@ -1,11 +1,11 @@
 {
   "total_records": 10000,
-  "generation_timestamp": "2026-08-27T08:02:46.293396+00:00",
+  "generation_timestamp": "2026-08-30T06:17:37.687001+00:00",
   "data_source": "kaggle:mlg-ulb/creditcardfraud",
   "class_distribution": {
-    "insufficient_funds": 5919,
+    "insufficient_funds": 5917,
     "gateway_timeout": 2850,
-    "auth_3ds_failure": 1201,
+    "auth_3ds_failure": 1203,
     "fraud_flag": 30
   },
   "anomaly_count": 30,
