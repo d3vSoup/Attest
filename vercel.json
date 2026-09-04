@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://attest-backend.onrender.com/api/$1"
+    },
+    {
+      "source": "/app",
+      "destination": "/frontend/index.html"
+    },
+    {
+      "source": "/",
+      "destination": "/frontend/home.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/frontend/$1"
+    }
+  ]
+}
