@@ -18,3 +18,9 @@ web3==7.2.0
 # Dashboard
 streamlit==1.37.0
 plotly==5.23.0
+
+# API & Agent
+fastapi==0.128.8
+uvicorn==0.39.0
+pydantic==2.13.4
+groq==1.0.0
