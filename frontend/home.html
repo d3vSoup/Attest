@@ -1,426 +1,642 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Attest — AI Payment Intelligence</title>
   <meta name="description" content="Every payment decision, classified, policy-gated, anomaly-flagged, and anchored on-chain. Built for Razorpay merchants who need proof, not promises."/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ── Kinetic Design Tokens ─────────────────────────────────────────────── */
     :root {
-      --white:   #FFFFFF;
-      --off:     #F7F9FC;
-      --surface: #EEF3FA;
-      --border:  #D8E3F0;
-      --border2: #C4D4E8;
-      --ink:     #0A1628;
-      --ink2:    #2B3F5C;
-      --muted:   #6B82A0;
-      --subtle:  #98AABF;
-      --blue:    #3B7DD8;
-      --blue2:   #5B9AEA;
-      --blue-bg: #EBF2FC;
-      --blue-bd: #B5D0F2;
+      --paper:       #f1f1ee;
+      --surface:     #ffffff;
+      --sunk:        #e7e7e2;
+      --ink:         #0a0a0a;
+      --ink-2:       #3a3a37;
+      --muted:       #6c6c68;
+      --faint:       #9c9c96;
+      --line:        #0a0a0a;
+      --line-soft:   #d2d2cc;
+      --hot:         #ff3b1f;
+      --on-hot:      #ffffff;
+      --volt:        #0a2fff;
+      --on-volt:     #ffffff;
+      --ok:          #15803d;
+      --warn:        #b45309;
+      --shadow-hard: 6px 6px 0 var(--ink);
+      --shadow-soft: 0 18px 40px -28px rgb(10 10 10 / 0.5);
     }
+
+    /* ── Reset ─────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    * { border-radius: 0 !important; } /* Kinetic law: square corners */
     html { font-size: 16px; -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
-    body { background: var(--white); color: var(--ink); font-family: 'Inter', sans-serif; overflow-x: hidden; }
-    ::selection { background: var(--blue-bg); color: var(--blue); }
-    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    body { background: var(--paper); color: var(--ink); font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    ::selection { background: var(--hot); color: var(--on-hot); }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--line-soft); }
 
-    /* ─── Canvas ──────────────────────────────────────────────────────────────── */
-    #particle-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.55; }
-
-    /* ─── Nav ──────────────────────────────────────────────────────────────────── */
-    nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-      height: 56px; padding: 0 40px;
+    /* ── Nav ────────────────────────────────────────────────────────────────── */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 2px solid var(--ink);
+      background: rgb(241 241 238 / 0.88);
+      backdrop-filter: blur(12px);
+    }
+    .nav-progress {
+      position: absolute; bottom: -2px; left: 0; height: 2px;
+      background: var(--hot); transform-origin: left;
+      transform: scaleX(0); transition: transform 0.1s linear;
+      width: 100%; z-index: 1;
+    }
+    .nav-inner {
+      max-width: 1400px; margin: auto;
       display: flex; align-items: center; justify-content: space-between;
-      background: rgba(255,255,255,0.88);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      border-bottom: 1px solid rgba(0,0,0,0.06);
+      padding: 0 20px; height: 56px;
     }
     .nav-brand {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.25rem; font-weight: 500; letter-spacing: -0.02em;
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 700; font-size: 0.9rem;
+      text-transform: uppercase; letter-spacing: 0.13em;
       color: var(--ink); text-decoration: none;
     }
     .nav-links { display: flex; align-items: center; gap: 32px; }
-    .nav-link { font-size: 0.8rem; font-weight: 400; color: var(--muted); text-decoration: none; letter-spacing: 0.01em; transition: color 0.2s; }
+    .nav-link {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--muted); text-decoration: none; transition: color 0.2s;
+    }
     .nav-link:hover { color: var(--ink); }
-    .nav-btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: var(--ink); color: var(--white);
-      padding: 7px 18px; border-radius: 8px;
-      font-size: 0.78rem; font-weight: 500; letter-spacing: 0.01em;
-      text-decoration: none; transition: all 0.2s;
-      border: 1px solid var(--ink);
-    }
-    .nav-btn:hover { background: var(--ink2); }
-
-    /* ─── Hero ─────────────────────────────────────────────────────────────────── */
-    .hero {
-      position: relative; z-index: 1;
-      min-height: 100vh;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 120px 40px 80px; text-align: center;
-    }
-
-    .hero-eyebrow {
+    .nav-cta {
+      position: relative; overflow: hidden;
       display: inline-flex; align-items: center; gap: 8px;
-      padding: 5px 14px; border-radius: 100px;
-      border: 1px solid var(--blue-bd); background: var(--blue-bg);
-      font-size: 0.72rem; font-weight: 500; color: var(--blue);
-      letter-spacing: 0.02em; margin-bottom: 36px;
-      opacity: 0; transform: translateY(8px);
-      animation: appear 0.5s ease 0.15s forwards;
+      border: 2px solid var(--ink); background: var(--ink);
+      padding: 8px 20px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--paper); text-decoration: none;
+      transition: color 0.3s;
     }
-    .eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: #2ECC71; flex-shrink: 0; animation: livePulse 2.2s ease-in-out infinite; }
-    @keyframes livePulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.4; transform:scale(0.7); } }
+    .nav-cta::before {
+      content: ''; position: absolute; inset: 0;
+      background: var(--hot); transform: translateX(-101%);
+      transition: transform 0.3s cubic-bezier(0.25,1,0.5,1);
+    }
+    .nav-cta:hover { color: var(--on-hot); }
+    .nav-cta:hover::before { transform: translateX(0); }
+    .nav-cta span { position: relative; z-index: 1; }
+
+    /* ── Preloader ──────────────────────────────────────────────────────────── */
+    #preloader {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--ink); display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.5s ease 0.8s, visibility 0s 1.3s;
+    }
+    #preloader.done { opacity: 0; visibility: hidden; }
+    .preloader-word {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: clamp(1.2rem, 3vw, 2rem);
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--paper);
+      animation: preloaderPulse 0.8s ease forwards;
+    }
+    @keyframes preloaderPulse {
+      0%   { opacity: 0; transform: translateY(8px); }
+      40%  { opacity: 1; transform: translateY(0); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    .preloader-word span { color: var(--hot); }
+
+    /* ── Hero ───────────────────────────────────────────────────────────────── */
+    .hero {
+      border-bottom: 2px solid var(--ink);
+      padding: 80px 20px 64px;
+      max-width: 1400px; margin: auto;
+    }
+    .hero-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 2px solid var(--ink);
+      padding: 4px 12px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--ink); margin-bottom: 40px;
+      opacity: 0; transform: translateY(12px);
+      animation: rise 0.55s cubic-bezier(0.25,1,0.5,1) 0.1s forwards;
+    }
+    .chip-dot { width: 6px; height: 6px; background: var(--ok); animation: livepulse 2s ease-in-out infinite; }
+    @keyframes livepulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
 
     .hero-headline {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(2.8rem, 6vw, 5.6rem);
-      font-weight: 500; line-height: 1.05; letter-spacing: -0.03em;
-      color: var(--ink); max-width: 820px;
-      opacity: 0; transform: translateY(16px);
-      animation: appear 0.7s ease 0.3s forwards;
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(3rem, 8.5vw, 8rem);
+      font-weight: 700; line-height: 0.95;
+      letter-spacing: -0.04em; color: var(--ink);
+      max-width: 14ch;
+      /* WordRise: clip each line */
+      overflow: hidden;
     }
-    .hero-headline em {
-      font-style: italic; color: var(--blue);
-      display: inline-block; position: relative;
+    .hero-line {
+      display: block; overflow: hidden;
+      opacity: 0; transform: translateY(100%);
     }
-    .hero-headline em::after {
-      content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--blue2), transparent);
-      animation: lineSlide 1.8s ease 1.2s forwards;
-      transform: scaleX(0); transform-origin: left;
+    .hero-line.hot { color: var(--hot); }
+    .hero-line:nth-child(1) { animation: lineUp 0.65s cubic-bezier(0.25,1,0.5,1) 0.25s forwards; }
+    .hero-line:nth-child(2) { animation: lineUp 0.65s cubic-bezier(0.25,1,0.5,1) 0.38s forwards; }
+    .hero-line:nth-child(3) { animation: lineUp 0.65s cubic-bezier(0.25,1,0.5,1) 0.51s forwards; }
+    @keyframes lineUp { to { opacity: 1; transform: translateY(0); } }
+
+    .hero-body-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 48px; margin-top: 56px; align-items: end;
     }
-    @keyframes lineSlide { to { transform: scaleX(1); } }
+    @media (max-width: 768px) { .hero-body-row { grid-template-columns: 1fr; } }
 
     .hero-sub {
-      font-size: clamp(0.95rem, 1.8vw, 1.1rem);
-      font-weight: 300; color: var(--muted); line-height: 1.75;
-      max-width: 520px; margin: 28px auto 0;
-      opacity: 0; transform: translateY(12px);
-      animation: appear 0.7s ease 0.5s forwards;
+      font-size: 1rem; font-weight: 400; line-height: 1.75;
+      color: var(--muted); max-width: 44ch;
+      opacity: 0; animation: rise 0.6s cubic-bezier(0.25,1,0.5,1) 0.65s forwards;
     }
 
-    /* Equation bar */
-    .equation {
-      display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
-      margin: 40px auto 0;
-      padding: 14px 28px; border-radius: 12px;
-      border: 1px solid var(--border); background: var(--off);
-      font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;
-      color: var(--muted);
-      opacity: 0; transform: translateY(10px);
-      animation: appear 0.7s ease 0.75s forwards;
-    }
-    .eq-label { color: var(--blue); font-weight: 500; }
-    .eq-plus { color: var(--border2); }
-    .eq-term { color: var(--ink2); font-weight: 500; transition: color 0.4s; }
-    .eq-term.lit { color: var(--blue); }
-
-    /* CTA row */
-    .hero-cta {
-      margin-top: 48px; display: flex; align-items: center; gap: 20px; justify-content: center;
-      opacity: 0; transform: translateY(10px);
-      animation: appear 0.7s ease 1s forwards;
+    .hero-cta-col {
+      display: flex; flex-direction: column; gap: 16px; align-items: flex-start;
+      opacity: 0; animation: rise 0.6s cubic-bezier(0.25,1,0.5,1) 0.75s forwards;
     }
     .btn-primary {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: var(--ink); color: var(--white);
-      padding: 14px 32px; border-radius: 10px;
-      font-size: 0.9rem; font-weight: 500; letter-spacing: 0.01em;
-      text-decoration: none; transition: all 0.25s;
-      box-shadow: 0 2px 12px rgba(10,22,40,0.14);
       position: relative; overflow: hidden;
+      display: inline-flex; align-items: center; gap: 10px;
+      border: 2px solid var(--ink); background: var(--ink);
+      padding: 16px 32px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--paper); text-decoration: none;
+      transition: color 0.3s; box-shadow: var(--shadow-hard);
     }
     .btn-primary::before {
       content: ''; position: absolute; inset: 0;
-      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.08) 50%, transparent 70%);
-      transform: translateX(-100%); transition: transform 0.5s;
+      background: var(--hot); transform: translateX(-101%);
+      transition: transform 0.3s cubic-bezier(0.25,1,0.5,1);
     }
-    .btn-primary:hover::before { transform: translateX(100%); }
-    .btn-primary:hover { background: var(--ink2); box-shadow: 0 4px 24px rgba(10,22,40,0.2); transform: translateY(-1px); }
-
-    .btn-ghost {
-      display: inline-flex; align-items: center; gap: 6px;
-      color: var(--muted); font-size: 0.85rem; font-weight: 400;
-      text-decoration: none; transition: color 0.2s; letter-spacing: 0.01em;
-    }
-    .btn-ghost:hover { color: var(--ink); }
-    .btn-ghost svg { transition: transform 0.2s; }
-    .btn-ghost:hover svg { transform: translateY(2px); }
-
-    /* Scroll hint */
-    .scroll-hint {
-      position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-      display: flex; flex-direction: column; align-items: center; gap: 6px;
-      opacity: 0; animation: appear 0.5s ease 1.6s forwards;
-    }
-    .scroll-label { font-size: 0.62rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--subtle); }
-    .scroll-line { width: 1px; height: 36px; background: linear-gradient(to bottom, var(--border2), transparent); animation: scrollDrop 2s ease-in-out infinite; }
-    @keyframes scrollDrop { 0%,100%{opacity:0.4;transform:scaleY(1)} 50%{opacity:1;transform:scaleY(1.15)} }
-
-    /* ─── Features ──────────────────────────────────────────────────────────────── */
-    .section { position: relative; z-index: 1; }
-
-    .feature-section {
-      padding: 120px 40px;
-      background: var(--white);
-      border-top: 1px solid var(--border);
-    }
-    .section-inner { max-width: 1080px; margin: 0 auto; }
-    .section-eyebrow {
+    .btn-primary:hover { color: var(--on-hot); box-shadow: none; transform: translate(6px, 6px); transition: color 0.3s, box-shadow 0.15s, transform 0.15s; }
+    .btn-primary:hover::before { transform: translateX(0); }
+    .btn-primary span { position: relative; z-index: 1; }
+    .btn-outline {
+      position: relative; overflow: hidden;
+      display: inline-flex; align-items: center; gap: 10px;
+      border: 2px solid var(--ink); background: transparent;
+      padding: 14px 28px;
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.68rem; font-weight: 500; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--blue); margin-bottom: 16px;
+      font-size: 0.75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--ink); text-decoration: none;
+      transition: color 0.3s;
     }
-    .section-headline {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(2rem, 3.5vw, 3rem);
-      font-weight: 500; letter-spacing: -0.025em; line-height: 1.15;
-      color: var(--ink); max-width: 520px; margin-bottom: 16px;
+    .btn-outline::before {
+      content: ''; position: absolute; inset: 0;
+      background: var(--ink); transform: translateX(-101%);
+      transition: transform 0.3s cubic-bezier(0.25,1,0.5,1);
     }
-    .section-sub { font-size: 0.92rem; font-weight: 300; color: var(--muted); max-width: 440px; line-height: 1.7; }
+    .btn-outline:hover { color: var(--paper); }
+    .btn-outline:hover::before { transform: translateX(0); }
+    .btn-outline span { position: relative; z-index: 1; }
 
-    .feature-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
-      margin-top: 64px;
+    /* ── Equation bar ───────────────────────────────────────────────────────── */
+    .equation-bar {
+      border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
+      background: var(--surface);
+      overflow: hidden; position: relative;
     }
-    @media (max-width: 768px) { .feature-grid { grid-template-columns: 1fr; } }
+    .equation-inner {
+      max-width: 1400px; margin: auto; padding: 0 20px;
+      display: flex; align-items: center; gap: 0;
+      height: 52px; overflow: hidden;
+    }
+    .eq-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--hot); white-space: nowrap; padding-right: 16px;
+      border-right: 2px solid var(--line-soft); margin-right: 16px;
+    }
+    .eq-term {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--muted); white-space: nowrap;
+      padding: 0 16px; border-right: 2px solid var(--line-soft);
+      transition: color 0.3s, background 0.3s;
+      height: 100%; display: flex; align-items: center;
+    }
+    .eq-term.lit { color: var(--ink); background: var(--sunk); font-weight: 700; }
+    .eq-op { color: var(--faint); padding: 0 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; }
 
-    .feature-card {
-      background: var(--white); padding: 40px 36px;
-      transition: background 0.2s, opacity 0.55s ease, transform 0.55s ease;
-      border-right: 1px solid var(--border);
+    /* ── Marquee ────────────────────────────────────────────────────────────── */
+    .marquee-wrap {
+      border-bottom: 2px solid var(--ink);
+      background: var(--hot); overflow: hidden;
+      padding: 12px 0;
+    }
+    .marquee-track {
+      display: flex; gap: 0; width: max-content;
+      animation: marquee 28s linear infinite;
+    }
+    .marquee-wrap:hover .marquee-track { animation-play-state: paused; }
+    .marquee-item {
+      display: inline-flex; align-items: center; gap: 16px;
+      padding: 0 32px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--on-hot); white-space: nowrap;
+    }
+    .marquee-sep { opacity: 0.5; }
+    @keyframes marquee { to { transform: translateX(-50%); } }
+
+    /* ── How it works ───────────────────────────────────────────────────────── */
+    .steps-section {
+      border-bottom: 2px solid var(--ink);
+      padding: 80px 20px;
+    }
+    .steps-inner { max-width: 1400px; margin: auto; }
+    .section-label {
+      display: flex; align-items: center; gap: 16px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--muted); margin-bottom: 48px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 2px; background: var(--line-soft);
+    }
+    .steps-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      border: 2px solid var(--ink);
+    }
+    @media (max-width: 900px) { .steps-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 540px) { .steps-grid { grid-template-columns: 1fr; } }
+    .step-card {
+      padding: 36px 28px; border-right: 2px solid var(--ink);
+      transition: background 0.2s;
       opacity: 0; transform: translateY(20px);
     }
-    .feature-card.in { opacity: 1; transform: none; }
-    .feature-card:hover { background: var(--off); }
+    .step-card:last-child { border-right: none; }
+    .step-card.in { opacity: 1; transform: none; transition: opacity 0.55s cubic-bezier(0.25,1,0.5,1), transform 0.55s cubic-bezier(0.25,1,0.5,1), background 0.2s; }
+    .step-card:hover { background: var(--sunk); }
+    .step-num {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--faint); margin-bottom: 20px;
+    }
+    .step-title {
+      font-size: 1.15rem; font-weight: 700;
+      letter-spacing: -0.02em; color: var(--ink);
+      margin-bottom: 12px;
+    }
+    .step-body {
+      font-size: 0.85rem; line-height: 1.7;
+      color: var(--muted);
+    }
 
-    .feature-icon {
-      width: 44px; height: 44px; border-radius: 12px;
-      border: 1px solid var(--border); background: var(--off);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.2rem; margin-bottom: 24px;
+    /* ── Feature sections ────────────────────────────────────────────────────── */
+    .features-section { border-bottom: 2px solid var(--ink); }
+    .feature-row {
+      max-width: 1400px; margin: auto;
+      display: grid; grid-template-columns: 1fr 1fr;
+      border-bottom: 2px solid var(--line-soft);
+      opacity: 0; transform: translateY(24px);
     }
-    .feature-name {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.2rem; font-weight: 500; letter-spacing: -0.01em;
-      color: var(--ink); margin-bottom: 10px;
+    .feature-row:last-child { border-bottom: none; }
+    .feature-row.in { opacity: 1; transform: none; transition: opacity 0.6s cubic-bezier(0.25,1,0.5,1), transform 0.6s cubic-bezier(0.25,1,0.5,1); }
+    @media (max-width: 768px) { .feature-row { grid-template-columns: 1fr; } }
+    .feature-content { padding: 64px 40px 64px 20px; border-right: 2px solid var(--line-soft); }
+    @media (max-width: 768px) { .feature-content { border-right: none; border-bottom: 2px solid var(--line-soft); } }
+    .feature-tag {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--hot); margin-bottom: 16px;
     }
-    .feature-body { font-size: 0.82rem; font-weight: 300; color: var(--muted); line-height: 1.75; }
-    .feature-stat { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
-    .stat-val {
-      font-family: 'Playfair Display', serif; font-size: 2rem;
-      font-weight: 500; letter-spacing: -0.03em; color: var(--ink);
-    }
-    .stat-lbl { font-size: 0.68rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--subtle); margin-top: 4px; }
-
-    /* ─── Proof strip ─────────────────────────────────────────────────────────── */
-    .proof-strip {
-      padding: 100px 40px;
-      background: var(--off); border-top: 1px solid var(--border);
-      text-align: center; position: relative; z-index: 1;
-      opacity: 0; transform: translateY(20px);
-    }
-    .proof-strip.in { opacity: 1; transform: none; transition: all 0.65s ease; }
-    .proof-headline {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(1.8rem, 3.5vw, 3rem);
-      font-weight: 500; letter-spacing: -0.025em; line-height: 1.15;
-      color: var(--ink); margin-bottom: 16px;
-    }
-    .proof-headline em { font-style: italic; color: var(--blue); }
-    .proof-sub { font-size: 0.9rem; font-weight: 300; color: var(--muted); max-width: 500px; margin: 0 auto 40px; line-height: 1.7; }
-    .proof-link {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 13px 28px; border-radius: 10px;
-      border: 1px solid var(--border2); background: var(--white);
-      font-size: 0.84rem; font-weight: 500; color: var(--ink2);
-      text-decoration: none; transition: all 0.2s;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    }
-    .proof-link:hover { border-color: var(--blue-bd); background: var(--blue-bg); color: var(--blue); box-shadow: 0 2px 12px rgba(59,125,216,0.1); }
-
-    /* ─── Priya story ─────────────────────────────────────────────────────────── */
-    .story-section {
-      padding: 100px 40px;
-      border-top: 1px solid var(--border);
-      position: relative; z-index: 1;
-    }
-    .story-inner { max-width: 960px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
-    @media (max-width: 768px) { .story-inner { grid-template-columns: 1fr; gap: 48px; } }
-    .story-quote {
-      font-family: 'Playfair Display', serif;
+    .feature-title {
       font-size: clamp(1.4rem, 2.5vw, 2rem);
-      font-weight: 500; font-style: italic;
-      color: var(--ink); line-height: 1.4; letter-spacing: -0.02em;
+      font-weight: 700; letter-spacing: -0.025em;
+      line-height: 1.2; color: var(--ink); margin-bottom: 16px;
     }
-    .story-quote-mark { font-size: 4rem; line-height: 0.5; color: var(--blue-bd); display: block; margin-bottom: 12px; font-style: normal; }
-    .story-attr { font-size: 0.78rem; color: var(--muted); margin-top: 20px; font-weight: 300; }
-    .story-stats { display: flex; flex-direction: column; gap: 20px; }
-    .story-stat {
-      padding: 24px 28px; border-radius: 14px;
-      border: 1px solid var(--border); background: var(--off);
+    .feature-body {
+      font-size: 0.9rem; line-height: 1.75;
+      color: var(--muted); max-width: 42ch;
+    }
+    .feature-stat-block {
+      padding: 64px 40px;
+      display: flex; flex-direction: column; justify-content: center;
+      background: var(--surface);
+    }
+    .stat-number {
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(3.5rem, 7vw, 6rem);
+      font-weight: 700; line-height: 1;
+      letter-spacing: -0.04em; color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-caption {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--muted); margin-top: 12px;
+    }
+
+    /* ── Story / Quote section ──────────────────────────────────────────────── */
+    .story-section {
+      border-bottom: 2px solid var(--ink);
+      background: var(--ink); color: var(--paper);
+      padding: 80px 20px;
+    }
+    .story-inner {
+      max-width: 1400px; margin: auto;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 64px; align-items: start;
+    }
+    @media (max-width: 768px) { .story-inner { grid-template-columns: 1fr; gap: 48px; } }
+    .story-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--hot); margin-bottom: 24px;
+    }
+    .story-quote {
+      font-size: clamp(1.3rem, 2.5vw, 1.9rem);
+      font-weight: 600; line-height: 1.4;
+      letter-spacing: -0.02em; color: var(--paper);
+    }
+    .story-attr {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem; color: var(--faint);
+      margin-top: 24px; text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .story-stats { display: flex; flex-direction: column; gap: 2px; }
+    .story-stat-card {
+      border: 2px solid rgb(241 241 238 / 0.12);
+      padding: 24px 28px; background: rgb(241 241 238 / 0.05);
+      transition: background 0.2s;
       opacity: 0; transform: translateX(16px);
     }
-    .story-stat.in { opacity: 1; transform: none; transition: all 0.5s ease; }
-    .story-stat-val { font-family: 'Playfair Display', serif; font-size: 2.2rem; font-weight: 500; color: var(--ink); letter-spacing: -0.03em; }
-    .story-stat-lbl { font-size: 0.75rem; color: var(--muted); margin-top: 4px; font-weight: 300; line-height: 1.5; }
-
-    /* ─── Footer ──────────────────────────────────────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 24px 40px;
-      display: flex; align-items: center; justify-content: space-between;
-      position: relative; z-index: 1; background: var(--white);
+    .story-stat-card.in { opacity: 1; transform: none; transition: opacity 0.5s cubic-bezier(0.25,1,0.5,1), transform 0.5s cubic-bezier(0.25,1,0.5,1), background 0.2s; }
+    .story-stat-card:hover { background: rgb(241 241 238 / 0.1); }
+    .story-stat-val {
+      font-family: 'Inter', sans-serif;
+      font-size: 2rem; font-weight: 700;
+      letter-spacing: -0.03em; color: var(--paper);
+      font-variant-numeric: tabular-nums;
     }
-    .footer-brand { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 500; color: var(--ink); }
-    .footer-right { font-size: 0.72rem; color: var(--subtle); font-weight: 300; letter-spacing: 0.02em; }
+    .story-stat-lbl {
+      font-size: 0.8rem; color: rgb(241 241 238 / 0.5);
+      margin-top: 6px; line-height: 1.5;
+    }
 
-    @keyframes appear { to { opacity: 1; transform: translateY(0); } }
+    /* ── CTA section ────────────────────────────────────────────────────────── */
+    .cta-section {
+      border-bottom: 2px solid var(--ink);
+      padding: 100px 20px; text-align: center;
+      background: var(--surface);
+    }
+    .cta-inner { max-width: 640px; margin: auto; }
+    .cta-headline {
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      font-weight: 700; letter-spacing: -0.03em;
+      line-height: 1.1; color: var(--ink); margin-bottom: 20px;
+    }
+    .cta-headline .hot { color: var(--hot); }
+    .cta-sub {
+      font-size: 0.9rem; color: var(--muted);
+      line-height: 1.75; margin-bottom: 40px; max-width: 40ch; margin-left: auto; margin-right: auto;
+    }
+    .cta-btns { display: flex; align-items: center; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+    /* ── Footer ─────────────────────────────────────────────────────────────── */
+    footer {
+      border-top: 2px solid var(--ink);
+      padding: 20px; background: var(--paper);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-brand {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--ink);
+    }
+    .footer-right {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem; color: var(--faint);
+      text-transform: uppercase; letter-spacing: 0.1em;
+    }
+
+    @keyframes rise {
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
 
-<canvas id="particle-canvas"></canvas>
+<!-- Preloader -->
+<div id="preloader">
+  <div class="preloader-word">ATTEST<span>.</span></div>
+</div>
 
 <!-- Nav -->
-<nav>
-  <a href="/" class="nav-brand">Attest</a>
-  <div class="nav-links">
-    <a href="#how" class="nav-link">How it works</a>
-    <a href="#proof" class="nav-link">Tamper proof</a>
-    <a href="/app" class="nav-btn">Open Dashboard →</a>
+<header class="nav">
+  <div class="nav-progress" id="nav-progress"></div>
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">Attest</a>
+    <nav class="nav-links">
+      <a href="#how" class="nav-link">How it works</a>
+      <a href="#proof" class="nav-link">Proof</a>
+      <a href="#story" class="nav-link">Case study</a>
+    </nav>
+    <a href="/app" class="nav-cta"><span>Open Dashboard →</span></a>
   </div>
-</nav>
+</header>
 
 <!-- Hero -->
 <section class="hero">
-  <div class="hero-eyebrow">
-    <span class="eyebrow-dot"></span>
+  <div class="hero-chip">
+    <div class="chip-dot"></div>
     Razorpay AI Buildathon 2026 · Live
   </div>
-
   <h1 class="hero-headline">
-    Every payment decision,<br>
-    <em id="tw-target">provably correct</em>
+    <span class="hero-line">Every</span>
+    <span class="hero-line">payment</span>
+    <span class="hero-line hot" id="tw-target">provably correct.</span>
   </h1>
+  <div class="hero-body-row">
+    <p class="hero-sub">
+      Attest classifies failed payments with AI, gates every action with policy, flags anomalies in real-time, and anchors the full audit trail on-chain — so you can prove the right call was made, forever.
+    </p>
+    <div class="hero-cta-col">
+      <a href="/app" class="btn-primary">
+        <span>Open Dashboard</span>
+        <span>→</span>
+      </a>
+      <a href="#how" class="btn-outline">
+        <span>See how it works</span>
+        <span>↓</span>
+      </a>
+    </div>
+  </div>
+</section>
 
-  <p class="hero-sub">
-    Attest classifies failed payments with AI, gates every action with policy, flags anomalies in real-time, and anchors the full audit trail on-chain — so you can prove the right call was made, forever.
-  </p>
-
-  <div class="equation">
+<!-- Equation bar -->
+<div class="equation-bar">
+  <div class="equation-inner">
     <span class="eq-label">Attest Score</span>
-    <span class="eq-plus">=</span>
-    <span class="eq-term" id="eq0">AI classification</span>
-    <span class="eq-plus">+</span>
-    <span class="eq-term" id="eq1">policy gate</span>
-    <span class="eq-plus">+</span>
-    <span class="eq-term" id="eq2">anomaly flag</span>
-    <span class="eq-plus">+</span>
-    <span class="eq-term" id="eq3">blockchain proof</span>
+    <span class="eq-op">=</span>
+    <span class="eq-term" id="eq0">AI Classification</span>
+    <span class="eq-op">+</span>
+    <span class="eq-term" id="eq1">Policy Gate</span>
+    <span class="eq-op">+</span>
+    <span class="eq-term" id="eq2">Anomaly Flag</span>
+    <span class="eq-op">+</span>
+    <span class="eq-term" id="eq3">Blockchain Proof</span>
   </div>
+</div>
 
-  <div class="hero-cta">
-    <a href="/app" class="btn-primary">
-      <span>Open Dashboard</span>
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </a>
-    <a href="#how" class="btn-ghost">
-      See how it works
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M4 9l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </a>
+<!-- Marquee -->
+<div class="marquee-wrap">
+  <div class="marquee-track" id="marquee-track">
+    <span class="marquee-item">AI CLASSIFICATION <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">POLICY GATE <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">ISOLATION FOREST <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">BLOCKCHAIN PROOF <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">SHA-256 ANCHORING <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">XGBOOST + SHAP <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">POLYGON AMOY <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">FRAUD DIFFUSION SIR <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">MONTE CARLO RISK <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">AUDIT TRAIL <span class="marquee-sep">✦</span></span>
+    <!-- duplicate for seamless loop -->
+    <span class="marquee-item">AI CLASSIFICATION <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">POLICY GATE <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">ISOLATION FOREST <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">BLOCKCHAIN PROOF <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">SHA-256 ANCHORING <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">XGBOOST + SHAP <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">POLYGON AMOY <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">FRAUD DIFFUSION SIR <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">MONTE CARLO RISK <span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">AUDIT TRAIL <span class="marquee-sep">✦</span></span>
   </div>
+</div>
 
-  <div class="scroll-hint">
-    <div class="scroll-label">Scroll</div>
-    <div class="scroll-line"></div>
+<!-- How it works -->
+<section class="steps-section" id="how">
+  <div class="steps-inner">
+    <div class="section-label">How it works</div>
+    <div class="steps-grid">
+      <div class="step-card" id="sc0">
+        <div class="step-num">01</div>
+        <div class="step-title">Payment fails</div>
+        <div class="step-body">A UPI reject, card decline, or gateway timeout hits the Attest pipeline. Every event is ingested with full metadata — amount, channel, time, merchant.</div>
+      </div>
+      <div class="step-card" id="sc1">
+        <div class="step-num">02</div>
+        <div class="step-title">AI classifies</div>
+        <div class="step-body">XGBoost with SHAP explainability routes the failure: fraud, gateway error, 3DS auth failure, or insufficient funds. The right recovery action fires automatically.</div>
+      </div>
+      <div class="step-card" id="sc2">
+        <div class="step-num">03</div>
+        <div class="step-title">Anomalies flagged</div>
+        <div class="step-body">Isolation Forest runs before the classifier. Velocity spikes, off-hours patterns, amount outliers — caught before they become chargebacks. R₀ 0.035 — contained.</div>
+      </div>
+      <div class="step-card" id="sc3">
+        <div class="step-num">04</div>
+        <div class="step-title">Proof anchored</div>
+        <div class="step-body">Every AI decision is SHA-256 hashed, Merkle-batched, and anchored on Polygon Amoy. Any post-hoc alteration is immediately detectable. 100% catch rate.</div>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- Features -->
-<section class="feature-section" id="how">
-  <div class="section-inner">
-    <div class="section-eyebrow">What Attest does</div>
-    <h2 class="section-headline">Three hard problems.<br>One clean system.</h2>
-    <p class="section-sub">Every failed payment flows through AI classification, a policy gate, an anomaly detector, and a blockchain anchoring step — automatically, in sequence.</p>
-
-    <div class="feature-grid">
-      <div class="feature-card" id="fc0">
-        <div class="feature-icon">🧠</div>
-        <div class="feature-name">AI Classification</div>
-        <div class="feature-body">XGBoost with SHAP explainability classifies each failure into fraud, gateway error, 3DS auth failure, or insufficient funds. The right recovery path, automatically selected.</div>
-        <div class="feature-stat">
-          <div class="stat-val">92.6%</div>
-          <div class="stat-lbl">AUC-ROC · Brier score 0.0009</div>
-        </div>
-      </div>
-      <div class="feature-card" id="fc1">
-        <div class="feature-icon">🔍</div>
-        <div class="feature-name">Anomaly Detection</div>
-        <div class="feature-body">Isolation Forest runs before the classifier. Velocity spikes, off-hours patterns, amount outliers — flagged before they become disputes. R₀ of 0.035 means fraud is contained.</div>
-        <div class="feature-stat">
-          <div class="stat-val">R₀ 0.035</div>
-          <div class="stat-lbl">Fraud reproduction number · Contained</div>
-        </div>
-      </div>
-      <div class="feature-card" id="fc2">
-        <div class="feature-icon">⛓</div>
-        <div class="feature-name">Blockchain Proof</div>
-        <div class="feature-body">Every AI decision is SHA-256 hashed, Merkle-batched, and anchored on Polygon Amoy. Any post-hoc alteration is immediately detectable. 100% catch rate — structural, not tuned.</div>
-        <div class="feature-stat">
-          <div class="stat-val">100%</div>
-          <div class="stat-lbl">Tamper detection rate · Structural</div>
-        </div>
-      </div>
+<section class="features-section" id="proof">
+  <!-- Feature 1 -->
+  <div class="feature-row" id="fr0">
+    <div class="feature-content">
+      <div class="feature-tag">AI Intelligence</div>
+      <h2 class="feature-title">What did the AI actually decide — and why?</h2>
+      <p class="feature-body">XGBoost with SHAP explainability classifies every failed payment. Each decision shows which features drove it — amount, channel, hour, velocity — in plain language your team can read and audit.</p>
+    </div>
+    <div class="feature-stat-block">
+      <div class="stat-number">92.6%</div>
+      <div class="stat-caption">AUC-ROC · Brier score 0.0009</div>
+    </div>
+  </div>
+  <!-- Feature 2 -->
+  <div class="feature-row" id="fr1">
+    <div class="feature-stat-block" style="border-right:2px solid var(--line-soft);">
+      <div class="stat-number">R₀ 0.035</div>
+      <div class="stat-caption">Fraud reproduction number · Contained</div>
+    </div>
+    <div class="feature-content" style="border-right:none;padding-left:40px;">
+      <div class="feature-tag">Anomaly Detection</div>
+      <h2 class="feature-title">Fraud contained before it spreads.</h2>
+      <p class="feature-body">Isolation Forest models fraud as an epidemic. An R₀ below 1 means each fraud event infects less than one new transaction. Our SIR model visualises the full diffusion curve — and proves it's contained.</p>
+    </div>
+  </div>
+  <!-- Feature 3 -->
+  <div class="feature-row" id="fr2">
+    <div class="feature-content">
+      <div class="feature-tag">Cryptographic Proof</div>
+      <h2 class="feature-title">Every decision, permanently provable.</h2>
+      <p class="feature-body">SHA-256 hash of every AI action. Merkle-batched every 10 minutes. Anchored to Polygon Amoy. Run the tamper test in the dashboard — corrupt five records, verify all five are caught. 100% structural, not tuned.</p>
+    </div>
+    <div class="feature-stat-block">
+      <div class="stat-number">100%</div>
+      <div class="stat-caption">Tamper detection rate · Structural</div>
     </div>
   </div>
 </section>
 
-<!-- Priya's Story -->
-<section class="story-section" id="proof">
+<!-- Priya's story -->
+<section class="story-section" id="story">
   <div class="story-inner">
     <div>
+      <div class="story-label">Case study — Priya Sharma</div>
       <div class="story-quote">
-        <span class="story-quote-mark">"</span>
-        Priya's SaaS gets 15 failed payments a week. Attest flags 12 as fraud patterns, 3 as gateway issues, routes them differently — and the audit trail proves the AI made the right call.
+        "15 failed payments a week. Attest flags 12 as fraud patterns, 3 as gateway issues, routes them differently — and the audit trail proves the AI made the right call."
       </div>
       <div class="story-attr">Priya Sharma · B2B SaaS founder · ₹48,000 recovered in 30 days</div>
     </div>
     <div class="story-stats">
-      <div class="story-stat" id="ss0">
+      <div class="story-stat-card" id="ss0">
         <div class="story-stat-val">12 / 15</div>
-        <div class="story-stat-lbl">Failed payments correctly classified as fraud patterns vs gateway errors — routed to different recovery flows</div>
+        <div class="story-stat-lbl">Failures correctly classified as fraud vs gateway error — different recovery flows, both proven</div>
       </div>
-      <div class="story-stat" id="ss1">
+      <div class="story-stat-card" id="ss1">
         <div class="story-stat-val">₹48,000</div>
         <div class="story-stat-lbl">Recovered in 30 days via AI-driven retry, discount, and escalation routing</div>
       </div>
-      <div class="story-stat" id="ss2">
+      <div class="story-stat-card" id="ss2">
         <div class="story-stat-val">0 disputes</div>
-        <div class="story-stat-lbl">Chargeback disputes resolved with auto-drafted letters and blockchain-anchored proof — all accepted</div>
+        <div class="story-stat-lbl">Chargebacks filed — all auto-drafted dispute letters accepted, blockchain proof attached</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Tamper proof CTA -->
-<section class="proof-strip" id="demo">
-  <h2 class="proof-headline">Try the tamper demo.<br><em>Watch it catch the lie.</em></h2>
-  <p class="proof-sub">Click "Run Tamper Test" in the dashboard. Five records are silently corrupted. The verifier catches all five. SHA-256 is deterministic — nothing to tune.</p>
-  <a href="/app" class="proof-link">
-    <span>Open Dashboard</span>
-    <span style="color:var(--subtle)">→ Run Tamper Test</span>
-  </a>
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <h2 class="cta-headline">Try the tamper demo.<br><span class="hot">Watch it catch the lie.</span></h2>
+    <p class="cta-sub">Five records silently corrupted. The SHA-256 verifier catches all five. Run it in the dashboard — takes 10 seconds.</p>
+    <div class="cta-btns">
+      <a href="/app" class="btn-primary"><span>Open Dashboard</span><span>→</span></a>
+      <a href="/app" class="btn-outline"><span>Run Tamper Test</span><span>⛓</span></a>
+    </div>
+  </div>
 </section>
 
 <!-- Footer -->
@@ -430,83 +646,27 @@
 </footer>
 
 <script>
-// ─── Particles ─────────────────────────────────────────────────────────────────
-const canvas = document.getElementById('particle-canvas');
-const ctx = canvas.getContext('2d');
-let W = 0, H = 0, pts = [];
-let mx = -999, my = -999;
+// ── Preloader ────────────────────────────────────────────────────────────────
+setTimeout(() => document.getElementById('preloader').classList.add('done'), 900);
 
-function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  W = window.innerWidth; H = window.innerHeight;
-  canvas.width = W * dpr; canvas.height = H * dpr;
-  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-  ctx.scale(dpr, dpr);
-}
+// ── Scroll progress nav hairline ────────────────────────────────────────────
+const progress = document.getElementById('nav-progress');
+window.addEventListener('scroll', () => {
+  const s = document.documentElement.scrollTop;
+  const h = document.documentElement.scrollHeight - window.innerHeight;
+  progress.style.transform = `scaleX(${s / h})`;
+}, { passive: true });
 
-function mkPt() {
-  return { x: Math.random() * W, y: Math.random() * H,
-           vx: (Math.random()-0.5)*0.18, vy: (Math.random()-0.5)*0.18,
-           r: Math.random() * 1.4 + 0.4 };
-}
+// ── Equation cycle ──────────────────────────────────────────────────────────
+let eqI = 0;
+setInterval(() => {
+  document.querySelectorAll('.eq-term').forEach(e => e.classList.remove('lit'));
+  document.getElementById('eq' + eqI)?.classList.add('lit');
+  eqI = (eqI + 1) % 4;
+}, 1400);
 
-function init() { pts = Array.from({length: 80}, mkPt); }
-
-window.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
-window.addEventListener('mouseleave', () => { mx = -999; my = -999; });
-
-function draw() {
-  ctx.clearRect(0, 0, W, H);
-  // Draw connections
-  for (let i = 0; i < pts.length; i++) {
-    for (let j = i+1; j < pts.length; j++) {
-      const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
-      const d = Math.sqrt(dx*dx + dy*dy);
-      if (d < 100) {
-        ctx.beginPath();
-        ctx.strokeStyle = `rgba(59,125,216,${0.07 * (1-d/100)})`;
-        ctx.lineWidth = 0.5;
-        ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[j].x, pts[j].y); ctx.stroke();
-      }
-    }
-    // Mouse connection
-    const dx2 = pts[i].x - mx, dy2 = pts[i].y - my;
-    const dm = Math.sqrt(dx2*dx2 + dy2*dy2);
-    if (dm < 140) {
-      ctx.beginPath();
-      ctx.strokeStyle = `rgba(59,125,216,${0.18 * (1-dm/140)})`;
-      ctx.lineWidth = 0.6;
-      ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(mx, my); ctx.stroke();
-    }
-    // Dot
-    ctx.beginPath();
-    ctx.arc(pts[i].x, pts[i].y, pts[i].r, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(59,125,216,0.28)`;
-    ctx.fill();
-    // Move
-    pts[i].x += pts[i].vx; pts[i].y += pts[i].vy;
-    if (pts[i].x < 0 || pts[i].x > W) pts[i].vx *= -1;
-    if (pts[i].y < 0 || pts[i].y > H) pts[i].vy *= -1;
-  }
-  requestAnimationFrame(draw);
-}
-
-resize(); init(); draw();
-window.addEventListener('resize', () => { resize(); init(); });
-
-// Trigger reveals for elements already in viewport
-setTimeout(() => {
-  document.querySelectorAll('.feature-card, .story-stat, .proof-strip').forEach(el => {
-    const rect = el.getBoundingClientRect();
-    if (rect.top < window.innerHeight) {
-      el.style.transition = 'opacity 0.55s ease, transform 0.55s ease';
-      el.classList.add('in');
-    }
-  });
-}, 200);
-
-// ─── Typewriter ────────────────────────────────────────────────────────────────
-const phrases = ['provably correct', 'explainable', 'tamper-proof', 'always auditable'];
+// ── Typewriter on hero-line.hot ─────────────────────────────────────────────
+const phrases = ['provably correct.', 'explainable.', 'tamper-proof.', 'always auditable.'];
 let pi = 0, ci = phrases[0].length, del = true;
 const twEl = document.getElementById('tw-target');
 
@@ -515,30 +675,22 @@ function type() {
   if (del) {
     ci--;
     twEl.textContent = phrase.substring(0, ci);
-    if (ci === 0) { del = false; pi = (pi+1) % phrases.length; setTimeout(type, 400); return; }
-    setTimeout(type, 52);
+    if (ci === 0) { del = false; pi = (pi + 1) % phrases.length; setTimeout(type, 500); return; }
+    setTimeout(type, 48);
   } else {
     ci++;
     twEl.textContent = phrases[pi].substring(0, ci);
-    if (ci === phrases[pi].length) { del = true; setTimeout(type, 2400); return; }
-    setTimeout(type, 88);
+    if (ci === phrases[pi].length) { del = true; setTimeout(type, 2800); return; }
+    setTimeout(type, 85);
   }
 }
-setTimeout(type, 2200);
+setTimeout(type, 1800);
 
-// ─── Equation cycle ────────────────────────────────────────────────────────────
-let eqI = 0;
-setInterval(() => {
-  document.querySelectorAll('.eq-term').forEach(e => e.classList.remove('lit'));
-  document.getElementById('eq' + eqI)?.classList.add('lit');
-  eqI = (eqI+1) % 4;
-}, 1300);
-
-// ─── Scroll reveals ────────────────────────────────────────────────────────────
-const observed = [
-  ...document.querySelectorAll('.feature-card'),
-  ...document.querySelectorAll('.story-stat'),
-  document.querySelector('.proof-strip'),
+// ── IntersectionObserver reveals ────────────────────────────────────────────
+const revealEls = [
+  ...document.querySelectorAll('.step-card'),
+  ...document.querySelectorAll('.feature-row'),
+  ...document.querySelectorAll('.story-stat-card'),
 ].filter(Boolean);
 
 const io = new IntersectionObserver((entries) => {
@@ -547,42 +699,20 @@ const io = new IntersectionObserver((entries) => {
     const el = entry.target;
     const siblings = el.parentElement ? Array.from(el.parentElement.children) : [];
     const idx = siblings.indexOf(el);
-    const delay = idx * 110;
-    setTimeout(() => {
-      el.style.transition = `opacity 0.55s ease, transform 0.55s ease`;
-      el.classList.add('in');
-    }, delay);
+    setTimeout(() => el.classList.add('in'), idx * 100);
     io.unobserve(el);
   });
-}, { threshold: 0.05, rootMargin: '0px 0px -20px 0px' });
+}, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
 
-observed.forEach(el => io.observe(el));
+revealEls.forEach(el => io.observe(el));
 
-// ─── Cinematic sine lines ──────────────────────────────────────────────────────
-const c2 = document.createElement('canvas');
-c2.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0.07';
-document.body.appendChild(c2);
-const cx2 = c2.getContext('2d');
-
-function glowLines() {
-  c2.width = window.innerWidth;
-  c2.height = window.innerHeight;
-  const t = Date.now() * 0.00022;
-  for (let i = 0; i < 2; i++) {
-    const y0 = window.innerHeight * (0.3 + i * 0.4);
-    const grad = cx2.createLinearGradient(0, 0, c2.width, 0);
-    grad.addColorStop(0, 'rgba(59,125,216,0)');
-    grad.addColorStop(0.5, 'rgba(59,125,216,0.6)');
-    grad.addColorStop(1, 'rgba(59,125,216,0)');
-    cx2.beginPath(); cx2.strokeStyle = grad; cx2.lineWidth = 1;
-    cx2.moveTo(0, y0 + Math.sin(t + i) * 22);
-    for (let x = 0; x <= c2.width; x += 3)
-      cx2.lineTo(x, y0 + Math.sin(t + i + x * 0.004) * 22);
-    cx2.stroke();
-  }
-  requestAnimationFrame(glowLines);
-}
-glowLines();
+// Trigger immediately for anything already in viewport
+setTimeout(() => {
+  revealEls.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight) el.classList.add('in');
+  });
+}, 200);
 </script>
 </body>
 </html>
