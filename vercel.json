@@ -1,21 +1,15 @@
 {
   "version": 2,
-  "rewrites": [
+  "builds": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://attest-backend.onrender.com/api/$1"
-    },
+      "src": "server.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
     {
-      "source": "/app",
-      "destination": "/frontend/index.html"
-    },
-    {
-      "source": "/",
-      "destination": "/frontend/home.html"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/frontend/$1"
+      "src": "/(.*)",
+      "dest": "server.py"
     }
   ]
 }
