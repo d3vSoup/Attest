@@ -258,6 +258,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .pulse-dot { width: 6px; height: 6px; background: #22C55E; animation: pulse 1.8s ease-in-out infinite; display: inline-block; }
     @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+    @keyframes slideInRow { to { opacity: 1; transform: translateX(0); } }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
@@ -1527,6 +1528,8 @@ function App() {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [tamperResults, setTamperResults] = useState(null);
   const [tamperRunning, setTamperRunning] = useState(false);
+  const [tamperPhase, setTamperPhase]     = useState(null); // 'corrupting' | 'verifying' | 'done'
+  const [simRunning, setSimRunning]       = useState(false);
   const [showAddTx, setShowAddTx]         = useState(false);
   const [liveSimOn, setLiveSimOn]         = useState(false);
   const liveSimRef = useRef(null);
@@ -1594,10 +1597,24 @@ function App() {
     const msg = inputVal.trim();
     if (!msg || loading) return;
     setInputVal('');
+
+    // Intent detection: tamper test trigger from chat
+    if (/tamper|corrupt|hash|blockchain proof|verify|sha.?256/i.test(msg)) {
+      let eventId = selectedId;
+      if (!eventId) {
+        const tempId = 'tamper_chat_' + Date.now();
+        EVENTS.push({ id: tempId, type: 'finance_question', dot: 'red', title: 'Tamper Demo', meta: msg.substring(0,40), time: 'now', event_data: { question: msg } });
+        setSelectedId(tempId);
+      }
+      addMessages(selectedId || ('tamper_chat_' + Date.now()), { id: Date.now(), role: 'user', content: msg });
+      addMessages(selectedId || ('tamper_chat_' + Date.now()), { id: Date.now()+1, role: 'assistant', content: '🔐 Running tamper detection demo — corrupting 5 records and verifying blockchain seal...' });
+      await runTamperDemo();
+      return;
+    }
+
     // If no event selected, treat as finance question
     let eventId = selectedId;
     if (!eventId) {
-      // Create a transient finance event
       const tempId = 'freeform_' + Date.now();
       const tempEvent = {
         id: tempId, type: 'finance_question', dot: 'blue',
@@ -1624,23 +1641,74 @@ function App() {
   };
 
   const runTamperDemo = async () => {
+    if (tamperRunning) return;
     setTamperRunning(true);
+    setTamperPhase('corrupting');
+    setTamperResults({ phase: 'corrupting' });
+
+    // Step 1: corrupt
     const res = await post('/api/demo/tamper', { n: 5 });
-    setTamperRunning(false);
-    if (res.status === 'success') {
-      // Fetch per-record verification results to show in the visual modal
-      const verifyRes = await api('/api/demo/verify-results');
-      setTamperResults({
-        summary: res.message,
-        records: verifyRes.records || [],
-        total: verifyRes.total || 0,
-        verified: verifyRes.verified || 0,
-        failed: verifyRes.failed || 0,
-      });
-      fetchStats();
-    } else {
-      setTamperResults({ error: res.detail || 'Tamper test failed' });
+    if (res.status !== 'success') {
+      setTamperRunning(false);
+      setTamperPhase(null);
+      setTamperResults({ error: res.detail || 'Tamper failed' });
+      return;
     }
+
+    // Step 2: suspense pause — let the "5 records corrupted" sink in
+    setTamperPhase('verifying');
+    await new Promise(r => setTimeout(r, 1800));
+
+    // Step 3: verify
+    const verifyRes = await api('/api/demo/verify-results');
+    setTamperRunning(false);
+    setTamperPhase('done');
+    setTamperResults({
+      phase: 'done',
+      summary: res.message,
+      records: verifyRes.records || [],
+      total:    verifyRes.total    || 0,
+      verified: verifyRes.verified || 0,
+      failed:   verifyRes.failed   || 0,
+    });
+    fetchStats();
+  };
+
+  // Simulate a random payment failure through the REAL pipeline
+  const runSimulateFailure = async () => {
+    if (simRunning) return;
+    setSimRunning(true);
+    const names    = ['Arjun Sharma','Meera Pillai','Rohan Das','Kavya Nair','Priya Sharma','Siddharth Rao'];
+    const channels = ['upi','card','netbanking','wallet'];
+    const types    = ['insufficient_funds','auth_3ds_failure','gateway_timeout','fraud_flag'];
+    const dotMap   = { fraud_flag:'red', auth_3ds_failure:'blue', gateway_timeout:'orange', insufficient_funds:'amber' };
+    const name = names[Math.floor(Math.random()*names.length)];
+    const amt  = Math.floor(Math.random()*48000)+500;
+    const ch   = channels[Math.floor(Math.random()*channels.length)];
+    const ft   = types[Math.floor(Math.random()*types.length)];
+    const newId = 'sim_' + Date.now();
+    const txn = {
+      transaction_id: newId, customer_name: name, product_name: 'Live Order',
+      amount: amt, channel: ch, decline_code: ft.toUpperCase(),
+      hour_of_day: new Date().getHours(), day_of_week: new Date().getDay(),
+      is_weekend: [0,6].includes(new Date().getDay()),
+      retry_count_so_far: 0, customer_txn_history_len: Math.floor(Math.random()*100)+10,
+      amount_vs_customer_avg_ratio: +(Math.random()*3+0.5).toFixed(2),
+      time_since_last_failure_hours: +(Math.random()*48).toFixed(1),
+      merchant_category: 'ecommerce', merchant_name: 'TechGadgets.in'
+    };
+    // Call the real process endpoint
+    const res = await post('/api/process', { transaction: txn });
+    setSimRunning(false);
+    const newEv = {
+      id: newId, type: 'payment_failed', dot: dotMap[ft] || 'red',
+      title: ft.replace(/_/g,' '), meta: `${name} · ₹${amt.toLocaleString('en-IN')}`,
+      time: 'just now',
+      event_data: { transaction: txn }
+    };
+    EVENTS.unshift(newEv);
+    fetchStats();
+    await selectEvent(newId);
   };
 
   const runKaggleReset = async () => {
@@ -1723,47 +1791,92 @@ function App() {
 
       {/* ── Tamper Result Modal ── */}
       {tamperResults && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn 0.15s ease'}}>
-          <div style={{background:'var(--paper)',border:'1px solid var(--border2)',borderRadius:6,width:'min(640px,92vw)',maxHeight:'82vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.2)',animation:'slideUp 0.2s ease'}}>
-            <div style={{padding:'1rem 1.25rem',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn 0.2s ease'}}>
+          <div style={{background:'var(--paper)',border:'2px solid var(--ink)',width:'min(680px,92vw)',maxHeight:'86vh',display:'flex',flexDirection:'column',boxShadow:'8px 8px 0 var(--ink)',animation:'slideUp 0.35s cubic-bezier(0.16,1,0.3,1)'}}>
+
+            {/* Modal header */}
+            <div style={{padding:'1rem 1.25rem',borderBottom:'2px solid var(--ink)',display:'flex',alignItems:'center',justifyContent:'space-between',background:'var(--ink)',color:'var(--paper)'}}>
               <div>
-                <div style={{fontFamily:"'Instrument Serif',serif",fontSize:'1.2rem'}}>Tamper Detection Proof</div>
-                <div style={{fontSize:'0.62rem',color:'var(--muted)',marginTop:'0.2rem',fontFamily:"'IBM Plex Mono',monospace"}}>
-                  {tamperResults.error ? 'ERROR' : `${tamperResults.total} records checked · ${tamperResults.verified} VERIFIED · ${tamperResults.failed} HASH_MISMATCH`}
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.75rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em'}}>Tamper Detection Proof</div>
+                <div style={{fontSize:'0.6rem',color:'rgba(241,241,238,0.55)',marginTop:'0.2rem',fontFamily:"'IBM Plex Mono',monospace",letterSpacing:'0.06em'}}>
+                  {tamperResults.phase === 'corrupting' && '⚠ Corrupting 5 records in DB…'}
+                  {tamperResults.phase === 'verifying'  && '🔍 Running SHA-256 verification…'}
+                  {tamperResults.phase === 'done' && `${tamperResults.total} records checked · ${tamperResults.verified} VERIFIED · ${tamperResults.failed} HASH_MISMATCH`}
+                  {tamperResults.error && 'ERROR'}
                 </div>
               </div>
-              <button onClick={() => setTamperResults(null)} style={{background:'none',border:'1px solid var(--border)',borderRadius:3,width:28,height:28,cursor:'pointer',fontSize:'1rem',color:'var(--muted)'}}>×</button>
+              {tamperResults.phase === 'done' || tamperResults.error ? (
+                <button onClick={() => { setTamperResults(null); setTamperPhase(null); }} style={{background:'none',border:'2px solid rgba(241,241,238,0.3)',width:28,height:28,cursor:'pointer',fontSize:'0.9rem',color:'rgba(241,241,238,0.7)',display:'flex',alignItems:'center',justifyContent:'center',transition:'border-color 0.2s'}} onMouseEnter={e=>e.target.style.borderColor='rgba(241,241,238,0.8)'} onMouseLeave={e=>e.target.style.borderColor='rgba(241,241,238,0.3)'}>✕</button>
+              ) : <div style={{width:20,height:20,border:'2px solid rgba(241,241,238,0.2)',borderTopColor:'var(--hot)',animation:'spin 0.7s linear infinite'}} />}
             </div>
-            {tamperResults.error ? (
-              <div style={{padding:'1.5rem',color:'var(--red)',fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.75rem'}}>{tamperResults.error}</div>
-            ) : (
+
+            {/* Phase: corrupting */}
+            {(tamperResults.phase === 'corrupting' || tamperResults.phase === 'verifying') && (
+              <div style={{padding:'2.5rem 1.5rem',display:'flex',flexDirection:'column',alignItems:'center',gap:'1.25rem'}}>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.72rem',color:'var(--muted)',letterSpacing:'0.06em'}}>
+                  {tamperResults.phase === 'corrupting'
+                    ? '⚠ Silently writing corrupted hashes to 5 records…'
+                    : '🔐 Verifying SHA-256 seal against blockchain anchor…'}
+                </div>
+                <div style={{display:'flex',gap:'6px'}}>
+                  {[0,1,2,3,4].map(i => (
+                    <div key={i} style={{width:10,height:10,background:tamperResults.phase==='verifying'?'var(--hot)':'var(--ink)',animation:`bounce 1.2s ease-in-out ${i*0.15}s infinite`}} />
+                  ))}
+                </div>
+                {tamperResults.phase === 'verifying' && (
+                  <div style={{fontSize:'0.65rem',color:'var(--muted)',maxWidth:'360px',textAlign:'center',lineHeight:1.6}}>
+                    5 records were corrupted. The SHA-256 verifier is now checking each hash against the anchored Merkle root.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Phase: done */}
+            {tamperResults.phase === 'done' && !tamperResults.error && (
               <>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.75rem',padding:'1rem 1.25rem',borderBottom:'1px solid var(--border)'}}>
+                {/* Stats row */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',borderBottom:'2px solid var(--ink)'}}>
                   {[
-                    [tamperResults.total,'Total records'],
-                    [tamperResults.verified,'✅ Verified','var(--green)'],
-                    [tamperResults.failed,'❌ Hash mismatch','var(--red)'],
-                  ].map(([v,l,c]) => (
-                    <div key={l} style={{padding:'0.75rem',border:'1px solid var(--border)',borderRadius:4,background:'var(--bg)'}}>
-                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'1.4rem',fontWeight:500,color:c||'var(--ink)'}}>{v}</div>
-                      <div style={{fontSize:'0.6rem',fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--subtle)',marginTop:'0.2rem'}}>{l}</div>
+                    [tamperResults.total,   'Records checked', null],
+                    [tamperResults.verified, 'Verified ✓',    'var(--green)'],
+                    [tamperResults.failed,   'HASH_MISMATCH ✗','var(--hot)'],
+                  ].map(([v,l,c],idx) => (
+                    <div key={l} style={{padding:'1rem 1.1rem',borderRight:idx<2?'2px solid var(--ink)':'none',background:c==='var(--hot)'?'var(--hot-bg)':c==='var(--green)'?'var(--green-bg)':'var(--paper)'}}>
+                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'1.6rem',fontWeight:700,color:c||'var(--ink)',lineHeight:1}}>{v}</div>
+                      <div style={{fontSize:'0.58rem',fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',marginTop:'0.4rem'}}>{l}</div>
                     </div>
                   ))}
                 </div>
+
+                {/* Record list with staggered animation */}
                 <div style={{flex:1,overflowY:'auto',padding:'0.75rem 1.25rem'}}>
                   {(tamperResults.records || []).map((r,i) => (
-                    <div key={i} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.5rem 0.6rem',marginBottom:'0.3rem',border:'1px solid',borderColor:r.status==='HASH_MISMATCH'?'var(--red-bd)':'var(--border)',borderRadius:3,background:r.status==='HASH_MISMATCH'?'var(--red-bg)':'transparent'}}>
-                      <span style={{fontSize:'0.8rem'}}>{r.status==='HASH_MISMATCH'?'❌':'✅'}</span>
-                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.62rem',color:'var(--muted)',flex:1}}>{r.record_id?.substring(0,24)}…</span>
-                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.62rem',color:r.status==='HASH_MISMATCH'?'var(--red)':'var(--green)',fontWeight:700}}>{r.status}</span>
-                      {r.status==='HASH_MISMATCH'&&<span style={{fontSize:'0.58rem',color:'var(--red)',opacity:0.8}}>altered post-anchoring</span>}
+                    <div key={i} style={{
+                      display:'flex',alignItems:'center',gap:'0.75rem',
+                      padding:'0.55rem 0.75rem',marginBottom:'3px',
+                      border:'2px solid',
+                      borderColor:r.status==='HASH_MISMATCH'?'var(--hot-bd)':'var(--line-soft,#d2d2cc)',
+                      background:r.status==='HASH_MISMATCH'?'var(--hot-bg)':'transparent',
+                      opacity:0, transform:'translateX(-8px)',
+                      animation:`slideInRow 0.4s cubic-bezier(0.16,1,0.3,1) ${i*120}ms forwards`
+                    }}>
+                      <span style={{fontSize:'0.9rem',flexShrink:0}}>{r.status==='HASH_MISMATCH'?'✗':'✓'}</span>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.6rem',color:'var(--muted)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.record_id?.substring(0,28)}…</span>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.62rem',color:r.status==='HASH_MISMATCH'?'var(--hot)':'var(--green)',fontWeight:700,flexShrink:0}}>{r.status}</span>
+                      {r.status==='HASH_MISMATCH' && <span style={{fontSize:'0.58rem',color:'var(--hot)',opacity:0.75,flexShrink:0}}>altered post-anchor</span>}
                     </div>
                   ))}
                 </div>
-                <div style={{padding:'0.75rem 1.25rem',borderTop:'1px solid var(--border)',background:'var(--bg)',fontSize:'0.68rem',color:'var(--muted)',fontStyle:'italic',lineHeight:1.5}}>
-                  SHA-256 is deterministic. Every altered byte changes the hash. 100% catch rate — not tuned, structural.
+
+                {/* Footer note */}
+                <div style={{padding:'0.75rem 1.25rem',borderTop:'2px solid var(--ink)',background:'var(--ink)',fontSize:'0.65rem',color:'rgba(241,241,238,0.6)',fontFamily:"'IBM Plex Mono',monospace",letterSpacing:'0.04em',lineHeight:1.6}}>
+                  SHA-256 is deterministic. Every altered byte changes the hash. 100% catch rate — structural, not tuned.
                 </div>
               </>
+            )}
+
+            {tamperResults.error && (
+              <div style={{padding:'1.5rem',color:'var(--red)',fontFamily:"'IBM Plex Mono',monospace",fontSize:'0.75rem'}}>{tamperResults.error}</div>
             )}
           </div>
         </div>
@@ -1781,6 +1894,17 @@ function App() {
           <div style={{ fontSize: '0.62rem', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted)', borderLeft: '1px solid var(--border)', paddingLeft: '0.85rem' }}>
             AI Payment Intelligence
           </div>
+          {/* Blockchain simulation mode badge */}
+          {stats && stats.batches_anchored === 0 && (
+            <div style={{display:'flex',alignItems:'center',gap:'5px',padding:'2px 8px',border:'1px solid var(--amber-bd)',background:'var(--amber-bg)',fontSize:'0.55rem',fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--amber)'}} title="Blockchain writes are simulated — Polygon Amoy testnet requires a funded wallet">
+              ⬡ POLYGON AMOY · SIM
+            </div>
+          )}
+          {stats && stats.batches_anchored > 0 && (
+            <div style={{display:'flex',alignItems:'center',gap:'5px',padding:'2px 8px',border:'1px solid var(--green-bd)',background:'var(--green-bg)',fontSize:'0.55rem',fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--green)'}}>
+              ⬡ POLYGON AMOY · LIVE
+            </div>
+          )}
         </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
             <button
@@ -1866,7 +1990,18 @@ function App() {
             </div>
 
             <div className="event-section-label" style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.8rem' }}>Demo Controls (Phase 12)</div>
-            
+
+            {/* Simulate Real Failure */}
+            <div className={`event-item`} onClick={!simRunning ? runSimulateFailure : undefined} style={{ opacity: simRunning ? 0.6 : 1, cursor: simRunning ? 'wait' : 'pointer' }}>
+              <div className="event-dot" style={{background: simRunning ? 'var(--amber)' : 'var(--green)', animation: simRunning ? 'pulse 0.8s ease-in-out infinite' : undefined}} />
+              <div className="event-body">
+                <div className="event-title">{simRunning ? 'Processing…' : 'Simulate Failure'}</div>
+                <div className="event-meta">{simRunning ? 'Running through AI pipeline' : 'Real XGBoost + chain anchor'}</div>
+                <div className="event-time">Random payment failure</div>
+              </div>
+            </div>
+
+            {/* Tamper Test */}
             <div className={`event-item`} onClick={!tamperRunning ? runTamperDemo : undefined} style={{ opacity: tamperRunning ? 0.6 : 1, cursor: tamperRunning ? 'wait' : 'pointer' }}>
               <div className="event-dot dot-red" style={tamperRunning ? {animation:'pulse 0.8s ease-in-out infinite'} : {}} />
               <div className="event-body">
@@ -1945,7 +2080,7 @@ function App() {
       </div>
 
       <footer className="footer">
-        <span style={{fontFamily:"'Instrument Serif',serif", fontSize:'0.75rem', letterSpacing:'-0.01em'}}>Attest</span>
+        <span style={{fontFamily:"'IBM Plex Mono',monospace", fontSize:'0.65rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em'}}>ATTEST</span>
         <span>Razorpay AI Buildathon · 2026</span>
       </footer>
     </div>
