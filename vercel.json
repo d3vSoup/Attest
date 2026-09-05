@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://attest-backend.onrender.com/api/$1"
+      "destination": "https://attest-tw7o.onrender.com/api/$1"
     },
     {
       "source": "/app",
