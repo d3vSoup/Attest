@@ -99,6 +99,38 @@ frontend_dir.mkdir(exist_ok=True)
 
 ROOT = Path(__file__).parent  # project root — used by analytics engines
 
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+    models_dir = ROOT / "models"
+    models_dir.mkdir(exist_ok=True)
+    if not (models_dir / "classifier.pkl").exists():
+        print("[Attest Startup] Training classifier ML model...")
+        try:
+            import subprocess
+            subprocess.run([sys.executable, "ml/train_classifier.py"], cwd=ROOT, check=False)
+        except Exception as e:
+            print(f"[Attest Startup] Classifier training error: {e}")
+
+    if not (models_dir / "anomaly_detector.pkl").exists():
+        print("[Attest Startup] Training anomaly detector ML model...")
+        try:
+            import subprocess
+            subprocess.run([sys.executable, "ml/train_anomaly.py"], cwd=ROOT, check=False)
+        except Exception as e:
+            print(f"[Attest Startup] Anomaly model training error: {e}")
+
+    try:
+        conn = get_connection()
+        count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
+        conn.close()
+        if count == 0:
+            print("[Attest Startup] Seeding initial database records...")
+            import subprocess
+            subprocess.run([sys.executable, "demo/tamper_test.py", "--reset", "--limit", "150"], cwd=ROOT, check=False)
+    except Exception as e:
+        print(f"[Attest Startup] DB seed error: {e}")
+
 EXPLORER_BASE = "https://amoy.polygonscan.com/tx/"
 
 
