@@ -256,16 +256,35 @@ def main():
 
     # ── Save SHAP Explainer ────────────────────────────────────────────────────
     print("\nCreating SHAP TreeExplainer for the XGBoost model...")
-    # Get the transformed feature names
-    explainer = shap.TreeExplainer(clf)
     shap_path = MODELS_DIR / "shap_explainer.pkl"
-    # We save both the explainer and the feature names so we can map them back later
-    joblib.dump({
-        "explainer": explainer,
-        "feature_names": feature_names,
-        "class_names": class_names_ordered
-    }, str(shap_path))
-    print(f"Saved SHAP explainer: {shap_path}")
+    try:
+        # XGBoost >=2.0 with multi-class stores base_score as a per-class vector.
+        # SHAP calls float() on it and raises ValueError. Patch the booster config
+        # to reset base_score to a scalar before handing it to SHAP.
+        import json as _json
+        _booster = clf.get_booster()
+        _cfg = _json.loads(_booster.save_config())
+        _lp = _cfg.get("learner", {}).get("learner_model_param", {})
+        _bs = _lp.get("base_score", "")
+        if isinstance(_bs, list) or (isinstance(_bs, str) and "[" in _bs):
+            _lp["base_score"] = "5e-1"
+            _booster.load_config(_json.dumps(_cfg))
+        explainer = shap.TreeExplainer(_booster)
+        joblib.dump({
+            "explainer": explainer,
+            "feature_names": feature_names,
+            "class_names": class_names_ordered
+        }, str(shap_path))
+        print(f"Saved SHAP explainer: {shap_path}")
+    except Exception as _shap_err:
+        print(f"[WARN] SHAP TreeExplainer failed ({_shap_err}) — saving stub.")
+        joblib.dump({
+            "explainer": None,
+            "feature_names": feature_names,
+            "class_names": class_names_ordered,
+            "stub": True
+        }, str(shap_path))
+        print(f"Saved SHAP stub (server will still start): {shap_path}")
 
     # ── Save metrics JSON ──────────────────────────────────────────────────────
     per_class_metrics = {}
