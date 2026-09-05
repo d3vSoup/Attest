@@ -1,0 +1,10 @@
+{
+  "precision": 0.49407114624505927,
+  "recall": 1.0,
+  "f1": 0.6613756613756614,
+  "total_records": 10000,
+  "true_anomalies": 250,
+  "detected_anomalies": 506,
+  "false_positives": 256,
+  "false_positive_rate": 0.026256410256410255
+}
