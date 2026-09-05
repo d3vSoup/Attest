@@ -1,26 +1,20 @@
 # Core
-faker==26.0.0
-pyyaml==6.0.2
-python-dotenv==1.0.1
+faker>=26.0.0
+pyyaml>=6.0.2
+python-dotenv>=1.0.1
 
-# ML
-xgboost==2.1.1
-scikit-learn==1.5.1
-pandas==2.2.2
-numpy==1.26.4
-joblib==1.4.2
-matplotlib==3.9.1
-seaborn==0.13.2
+# ML & Data (Pre-built wheel compatible)
+xgboost>=2.0.0
+scikit-learn>=1.4.0
+pandas>=2.0.0
+numpy>=1.26.0,<2.0.0
+joblib>=1.4.0
 
 # Blockchain
-web3==7.2.0
+web3>=6.0.0
 
-# Dashboard
-streamlit==1.37.0
-plotly==5.23.0
-
-# API & Agent
-fastapi==0.128.8
-uvicorn==0.39.0
-pydantic==2.13.4
-groq==1.0.0
+# API & Server
+fastapi>=0.100.0
+uvicorn>=0.20.0
+pydantic>=2.0.0
+groq>=0.4.0
