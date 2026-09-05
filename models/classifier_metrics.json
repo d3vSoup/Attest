@@ -1,0 +1,97 @@
+{
+  "accuracy": 0.822,
+  "weighted_f1": 0.8244,
+  "weighted_precision": 0.8316,
+  "weighted_recall": 0.822,
+  "cv_f1_mean": 0.8222,
+  "cv_f1_std": 0.0078,
+  "confusion_matrix": [
+    [
+      346,
+      20,
+      28,
+      46
+    ],
+    [
+      8,
+      199,
+      18,
+      15
+    ],
+    [
+      46,
+      60,
+      621,
+      33
+    ],
+    [
+      38,
+      30,
+      14,
+      478
+    ]
+  ],
+  "confusion_matrix_normalized": [
+    [
+      0.7864,
+      0.0455,
+      0.0636,
+      0.1045
+    ],
+    [
+      0.0333,
+      0.8292,
+      0.075,
+      0.0625
+    ],
+    [
+      0.0605,
+      0.0789,
+      0.8171,
+      0.0434
+    ],
+    [
+      0.0679,
+      0.0536,
+      0.025,
+      0.8536
+    ]
+  ],
+  "class_names": [
+    "auth_3ds_failure",
+    "fraud_flag",
+    "gateway_timeout",
+    "insufficient_funds"
+  ],
+  "per_class_metrics": {
+    "auth_3ds_failure": {
+      "precision": 0.79,
+      "recall": 0.7864,
+      "f1": 0.7882,
+      "support": 440
+    },
+    "fraud_flag": {
+      "precision": 0.644,
+      "recall": 0.8292,
+      "f1": 0.725,
+      "support": 240
+    },
+    "gateway_timeout": {
+      "precision": 0.9119,
+      "recall": 0.8171,
+      "f1": 0.8619,
+      "support": 760
+    },
+    "insufficient_funds": {
+      "precision": 0.8357,
+      "recall": 0.8536,
+      "f1": 0.8445,
+      "support": 560
+    }
+  },
+  "n_train": 8000,
+  "n_test": 2000,
+  "n_features": 20,
+  "model": "XGBoost (n_est=300, max_depth=5, class-balanced weights, no decline_code)",
+  "data_source": "NPCI/Razorpay statistical distributions, 10k records"
+}
